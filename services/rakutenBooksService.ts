@@ -3,7 +3,7 @@ import { mapRakutenResponseToBooks } from "@/services/mappers/rakutenMapper";
 
 const RAKUTEN_ENDPOINT = "https://app.rakuten.co.jp/services/api/BooksBook/Search/20170404";
 
-function buildRakutenSort(sort: BookSearchParams["sort"]): string {
+function buildRakutenSort(sort: string): string {
   switch (sort) {
     case "newest":
       return "-releaseDate";

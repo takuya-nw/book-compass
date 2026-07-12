@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Check, Info, Plus } from "lucide-react";
 import type { Book, ReadingStatus } from "@/types/book";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
+import { formatIsbn, formatReviewAverage, formatReviewCount } from "@/utils/bookDisplay";
 import { formatAuthors, formatDate, formatPrice } from "@/utils/formatters";
 import { BookCover } from "@/components/BookCover";
 
@@ -41,18 +42,19 @@ export function BookCard({ book, onMessage, shelfStatus }: BookCardProps) {
           <p className="mt-2 text-sm text-muted">{formatAuthors(book.authors)}</p>
           <p className="mt-1 text-sm text-muted">{book.publisher ?? "出版社不明"}</p>
           <p className="mt-1 text-sm text-muted">{formatDate(book.publishedDate)}</p>
+          <p className="mt-1 text-sm text-muted">ISBN: {formatIsbn(book)}</p>
           <p className="mt-3 font-semibold text-ink">{formatPrice(book.price, book.currency)}</p>
         </div>
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+      <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
         <div className="rounded-md bg-[#f8f1e6] p-2">
           <dt className="text-muted">レビュー平均</dt>
-          <dd className="font-semibold">{book.reviewAverage ?? "なし"}</dd>
+          <dd className="font-semibold">{formatReviewAverage(book)}</dd>
         </div>
         <div className="rounded-md bg-[#f8f1e6] p-2">
           <dt className="text-muted">レビュー件数</dt>
-          <dd className="font-semibold">{book.reviewCount ?? "なし"}</dd>
+          <dd className="font-semibold">{formatReviewCount(book)}</dd>
         </div>
       </dl>
 

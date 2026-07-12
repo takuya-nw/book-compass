@@ -11,28 +11,19 @@ import type {
   BookSearchResult,
   BookSort,
   BookshelfData,
-  ReadingStatus,
-  SearchSource
+  ReadingStatus
 } from "@/types/book";
 
-const sortOptions: { value: BookSort; label: string; rakutenOnly?: boolean }[] = [
+const sortOptions: { value: BookSort; label: string }[] = [
   { value: "relevance", label: "関連度順" },
-  { value: "newest", label: "発売日の新しい順" },
-  { value: "sales", label: "売れている順", rakutenOnly: true },
-  { value: "reviewCount", label: "レビュー件数順", rakutenOnly: true },
-  { value: "reviewAverage", label: "レビュー評価順", rakutenOnly: true }
+  { value: "newest", label: "発売日の新しい順" }
 ];
-
-function isSortDisabled(source: SearchSource, sort: BookSort): boolean {
-  return source === "google" && ["sales", "reviewCount", "reviewAverage"].includes(sort);
-}
 
 export function SearchClient() {
   const [keyword, setKeyword] = useState("");
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [isbn, setIsbn] = useState("");
-  const [source, setSource] = useState<SearchSource>("all");
   const [sort, setSort] = useState<BookSort>("relevance");
   const [books, setBooks] = useState<Book[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
@@ -56,13 +47,6 @@ export function SearchClient() {
     return map;
   }, [shelf]);
 
-  function handleSourceChange(value: SearchSource) {
-    setSource(value);
-    if (isSortDisabled(value, sort)) {
-      setSort("relevance");
-    }
-  }
-
   async function handleSearch(event?: FormEvent) {
     event?.preventDefault();
     setLoading(true);
@@ -75,7 +59,7 @@ export function SearchClient() {
       title,
       author,
       isbn,
-      source,
+      source: "google",
       sort
     });
 
@@ -125,18 +109,12 @@ export function SearchClient() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="grid gap-2">
+          <div className="grid gap-2">
             <span className="label">検索元</span>
-            <select
-              className="input"
-              value={source}
-              onChange={(event) => handleSourceChange(event.target.value as SearchSource)}
-            >
-              <option value="all">すべて</option>
-              <option value="rakuten">楽天ブックス</option>
-              <option value="google">Google Books</option>
-            </select>
-          </label>
+            <div className="flex min-h-11 items-center rounded-md border border-line bg-[#f8f1e6] px-3 text-base font-semibold text-ink">
+              Google Books
+            </div>
+          </div>
           <label className="grid gap-2">
             <span className="label">並び替え</span>
             <select
@@ -145,13 +123,8 @@ export function SearchClient() {
               onChange={(event) => setSort(event.target.value as BookSort)}
             >
               {sortOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                  disabled={isSortDisabled(source, option.value)}
-                >
+                <option key={option.value} value={option.value}>
                   {option.label}
-                  {source === "google" && option.rakutenOnly ? "（Googleでは利用不可）" : ""}
                 </option>
               ))}
             </select>

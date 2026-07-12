@@ -14,6 +14,7 @@ import {
 } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import type { Book, BookshelfData, ReadingStatus } from "@/types/book";
+import { formatIsbn, formatReviewSummary } from "@/utils/bookDisplay";
 import { formatAuthors, formatPrice } from "@/utils/formatters";
 
 const sourceLabels = {
@@ -154,7 +155,7 @@ export function BookDetailClient({ id }: { id: string }) {
             </div>
             <div>
               <dt className="label">ISBN</dt>
-              <dd className="mt-1 text-muted">{book.isbn13 ?? book.isbn10 ?? "ISBNなし"}</dd>
+              <dd className="mt-1 text-muted">{formatIsbn(book)}</dd>
             </div>
             <div>
               <dt className="label">価格</dt>
@@ -162,9 +163,7 @@ export function BookDetailClient({ id }: { id: string }) {
             </div>
             <div>
               <dt className="label">レビュー</dt>
-              <dd className="mt-1 text-muted">
-                平均 {book.reviewAverage ?? "なし"} / 件数 {book.reviewCount ?? "なし"}
-              </dd>
+              <dd className="mt-1 text-muted">{formatReviewSummary(book)}</dd>
             </div>
           </dl>
 
@@ -186,7 +185,7 @@ export function BookDetailClient({ id }: { id: string }) {
                   className="btn-secondary"
                 >
                   <ExternalLink size={18} aria-hidden="true" />
-                  商品ページを開く
+                  Google Booksで見る
                 </a>
               ) : null}
               {shelfItem ? (

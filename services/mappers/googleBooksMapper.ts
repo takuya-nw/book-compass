@@ -22,6 +22,8 @@ type GoogleBooksItem = {
     };
     categories?: string[];
     infoLink?: string;
+    averageRating?: number;
+    ratingsCount?: number;
   };
   saleInfo?: {
     listPrice?: {
@@ -81,6 +83,8 @@ export function mapGoogleItemToBook(item: GoogleBooksItem): Book | null {
     thumbnailUrl,
     largeImageUrl: thumbnailUrl,
     categories: volume.categories ?? [],
+    reviewAverage: volume.averageRating,
+    reviewCount: volume.ratingsCount,
     productUrl: volume.infoLink,
     source: "google",
     sourceId

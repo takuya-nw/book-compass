@@ -6,14 +6,11 @@ export type ReadingStatus =
   | "completed"
   | "notInterested";
 
-export type SearchSource = "all" | "rakuten" | "google";
+export type SearchSource = "google";
 
 export type BookSort =
   | "relevance"
-  | "newest"
-  | "sales"
-  | "reviewCount"
-  | "reviewAverage";
+  | "newest";
 
 export type Book = {
   id: string;

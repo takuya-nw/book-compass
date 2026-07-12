@@ -60,7 +60,9 @@ describe("API response mappers", () => {
               thumbnail: "http://example.com/thumb.jpg"
             },
             categories: ["技術"],
-            infoLink: "https://example.com/info"
+            infoLink: "https://example.com/info",
+            averageRating: 4.2,
+            ratingsCount: 18
           },
           saleInfo: {
             listPrice: {
@@ -82,6 +84,8 @@ describe("API response mappers", () => {
       price: 2200,
       currency: "JPY",
       thumbnailUrl: "https://example.com/thumb.jpg",
+      reviewAverage: 4.2,
+      reviewCount: 18,
       source: "google"
     });
   });

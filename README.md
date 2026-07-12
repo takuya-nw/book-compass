@@ -1,6 +1,6 @@
 # Book Compass
 
-Book Compassは、個人向けの読書管理・本棚Webアプリです。第1段階では、本の検索、表紙付き検索結果、詳細確認、本棚登録、読書ステータス管理、JSONバックアップに対応しています。
+Book Compassは、個人向けの読書管理・本棚Webアプリです。第1段階では、Google Booksでの本の検索、表紙付き検索結果、詳細確認、本棚登録、読書ステータス管理、JSONバックアップに対応しています。
 
 ## 必要環境
 
@@ -26,12 +26,12 @@ npm run dev
 `.env.example` を参考に `.env.local` を作成し、必要なキーを設定してください。
 
 ```bash
-RAKUTEN_APPLICATION_ID=
-RAKUTEN_ACCESS_KEY=
 GOOGLE_BOOKS_API_KEY=
 ```
 
-APIキーはブラウザ側へ直接渡さず、Next.jsのAPI Routeから外部APIへアクセスします。外部サービスの登録が必要な場合は、ユーザー自身で登録してください。
+APIキーはブラウザ側へ直接渡さず、Next.jsのAPI RouteからGoogle Books APIへアクセスします。外部サービスの登録が必要な場合は、ユーザー自身で登録してください。
+
+楽天ブックスAPIは当面使用しない方針です。将来追加しやすいようにサービス層は画面から分離していますが、現在の検索画面ではGoogle Booksのみを使います。
 
 ## デモモードの使い方
 
