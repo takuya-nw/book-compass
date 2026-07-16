@@ -19,7 +19,8 @@ function searchMockBooks(params: BookSearchParams) {
         ...book.authors,
         book.publisher,
         book.isbn10,
-        book.isbn13
+        book.isbn13,
+        ...book.categories
       ].join(" ")
     );
     return matchesDemoBook(params, text);

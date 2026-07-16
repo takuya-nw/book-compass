@@ -10,14 +10,20 @@ import {
   Star
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { BookshelfData } from "@/types/book";
+import type { Book, BookSearchResult, BookshelfData } from "@/types/book";
 import { createEmptyBookshelf, getShelfItems } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import { formatAuthors } from "@/utils/formatters";
+import { BookCard } from "@/components/BookCard";
 import { BookCover } from "@/components/BookCover";
 import { createHomeSummary, getRecentCompletedItems } from "@/utils/homeSummary";
 import { Notice } from "@/components/Notice";
 import { formatReadingDate } from "@/utils/readingDates";
+import {
+  createRecommendationSeed,
+  formatRecommendationReason,
+  getRecommendationCandidates
+} from "@/utils/recommendations";
 
 function StatCard({
   label,
@@ -41,7 +47,15 @@ function StatCard({
 
 export function HomeClient() {
   const [data, setData] = useState<BookshelfData>(createEmptyBookshelf());
+  const [shelfReady, setShelfReady] = useState(false);
   const [error, setError] = useState("");
+  const [recommendationBooks, setRecommendationBooks] = useState<Book[]>([]);
+  const [recommendationMessages, setRecommendationMessages] = useState<string[]>([]);
+  const [recommendationFeedback, setRecommendationFeedback] = useState("");
+  const [recommendationFeedbackTone, setRecommendationFeedbackTone] = useState<
+    "success" | "error"
+  >("success");
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
 
   useEffect(() => {
     const loaded = localStorageBookshelfRepository.load();
@@ -50,10 +64,12 @@ export function HomeClient() {
     } else {
       setError(loaded.error);
     }
+    setShelfReady(true);
   }, []);
 
   const items = useMemo(() => getShelfItems(data), [data]);
   const summary = useMemo(() => createHomeSummary(items), [items]);
+  const recommendationSeed = useMemo(() => createRecommendationSeed(items), [items]);
   const recentItems = [...items]
     .sort(
       (a, b) =>
@@ -62,6 +78,66 @@ export function HomeClient() {
     )
     .slice(0, 4);
   const recentCompletedItems = useMemo(() => getRecentCompletedItems(items), [items]);
+
+  useEffect(() => {
+    if (!shelfReady || !recommendationSeed) {
+      setRecommendationBooks([]);
+      setRecommendationMessages([]);
+      setRecommendationsLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({
+      keyword: recommendationSeed.value,
+      source: "google",
+      sort: "relevance"
+    });
+
+    setRecommendationsLoading(true);
+    setRecommendationMessages([]);
+
+    fetch(`/api/books/search?${params.toString()}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("recommendation-failed");
+        }
+        return (await response.json()) as BookSearchResult;
+      })
+      .then((result) => {
+        setRecommendationBooks(
+          getRecommendationCandidates(result.books, data.books)
+        );
+        setRecommendationMessages(result.messages);
+      })
+      .catch((fetchError: unknown) => {
+        if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
+          return;
+        }
+        setRecommendationBooks([]);
+        setRecommendationMessages([
+          "おすすめを取得できませんでした。時間をおいてもう一度お試しください。"
+        ]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setRecommendationsLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [data.books, recommendationSeed, shelfReady]);
+
+  function handleRecommendationMessage(message: string, tone: "success" | "error") {
+    setRecommendationFeedback(message);
+    setRecommendationFeedbackTone(tone);
+    if (tone === "success") {
+      const loaded = localStorageBookshelfRepository.load();
+      if (loaded.ok) {
+        setData(loaded.value);
+      }
+    }
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
@@ -90,13 +166,24 @@ export function HomeClient() {
               <Sparkles size={22} aria-hidden="true" />
             </div>
             <div>
-              <h2 className="font-bold">新刊・おすすめ</h2>
-              <p className="text-sm text-muted">今後追加予定</p>
+              <h2 className="font-bold">あなたへのおすすめ</h2>
+              <p className="text-sm text-muted">
+                {recommendationSeed ? recommendationSeed.value : "本棚から好みを見つけます"}
+              </p>
             </div>
           </div>
           <p className="mt-4 text-sm leading-6 text-muted">
-            第1段階では検索、本棚登録、ステータス管理、バックアップに集中しています。
+            {recommendationSeed
+              ? formatRecommendationReason(recommendationSeed)
+              : "本棚に本を登録すると、ジャンルや著者をもとに候補を表示します。"}
           </p>
+          <Link
+            href={recommendationSeed ? "#recommendations" : "/search"}
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-sage hover:underline"
+          >
+            {recommendationSeed ? "おすすめを見る" : "本を探す"}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
       </section>
 
@@ -111,6 +198,56 @@ export function HomeClient() {
         <StatCard label="読書中" value={summary.reading} icon={<BookOpen size={22} />} />
         <StatCard label="読了した本" value={summary.completed} icon={<CheckCircle2 size={22} />} />
         <StatCard label="評価した本" value={summary.rated} icon={<Star size={22} />} />
+      </section>
+
+      <section id="recommendations" className="mt-10 scroll-mt-24">
+        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">あなたへのおすすめ</h2>
+            {recommendationSeed ? (
+              <p className="mt-1 text-sm text-muted">
+                {formatRecommendationReason(recommendationSeed)}
+              </p>
+            ) : null}
+          </div>
+          <Link href="/search" className="text-sm font-semibold text-sage hover:underline">
+            自分で探す
+          </Link>
+        </div>
+
+        <div className="mb-4 grid gap-3">
+          {recommendationFeedback ? (
+            <Notice
+              message={recommendationFeedback}
+              tone={recommendationFeedbackTone}
+            />
+          ) : null}
+          {recommendationMessages.map((message) => (
+            <Notice key={message} message={message} />
+          ))}
+        </div>
+
+        {!shelfReady || recommendationsLoading ? (
+          <div className="surface p-6 text-muted">おすすめを選んでいます。</div>
+        ) : !recommendationSeed ? (
+          <div className="surface p-6 text-muted">
+            おすすめの条件にできる本がまだありません。本棚に本を追加すると、ここに候補が表示されます。
+          </div>
+        ) : recommendationBooks.length === 0 ? (
+          <div className="surface p-6 text-muted">
+            今回は新しい候補が見つかりませんでした。本棚が増えるとおすすめも変わります。
+          </div>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {recommendationBooks.map((book) => (
+              <BookCard
+                key={`${book.source}-${book.sourceId}`}
+                book={book}
+                onMessage={handleRecommendationMessage}
+              />
+            ))}
+          </div>
+        )}
       </section>
 
       {recentCompletedItems.length > 0 ? (
