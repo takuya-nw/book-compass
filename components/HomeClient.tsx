@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookMarked, BookOpen, CheckCircle2, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BookMarked,
+  BookOpen,
+  CheckCircle2,
+  Sparkles,
+  Star
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { BookshelfData } from "@/types/book";
 import { createEmptyBookshelf, getShelfItems } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import { formatAuthors } from "@/utils/formatters";
 import { BookCover } from "@/components/BookCover";
+import { createHomeSummary, getRecentCompletedItems } from "@/utils/homeSummary";
 
 function StatCard({
   label,
@@ -40,6 +48,7 @@ export function HomeClient() {
   }, []);
 
   const items = useMemo(() => getShelfItems(data), [data]);
+  const summary = useMemo(() => createHomeSummary(items), [items]);
   const recentItems = [...items]
     .sort(
       (a, b) =>
@@ -47,10 +56,15 @@ export function HomeClient() {
         new Date(a.userBook.registeredAt).getTime()
     )
     .slice(0, 4);
+  const recentCompletedItems = useMemo(() => getRecentCompletedItems(items), [items]);
 
-  const wantToRead = data.userBooks.filter((book) => book.status === "wantToRead").length;
-  const reading = data.userBooks.filter((book) => book.status === "reading").length;
-  const completed = data.userBooks.filter((book) => book.status === "completed").length;
+  function formatCompletedDate(date: string): string {
+    return new Intl.DateTimeFormat("ja-JP", {
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }).format(new Date(date));
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
@@ -89,11 +103,53 @@ export function HomeClient() {
         </div>
       </section>
 
-      <section className="mt-10 grid gap-4 sm:grid-cols-3">
-        <StatCard label="読みたい本" value={wantToRead} icon={<BookMarked size={22} />} />
-        <StatCard label="読書中" value={reading} icon={<BookOpen size={22} />} />
-        <StatCard label="読了した本" value={completed} icon={<CheckCircle2 size={22} />} />
+      <section className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="読みたい本" value={summary.wantToRead} icon={<BookMarked size={22} />} />
+        <StatCard label="読書中" value={summary.reading} icon={<BookOpen size={22} />} />
+        <StatCard label="読了した本" value={summary.completed} icon={<CheckCircle2 size={22} />} />
+        <StatCard label="評価した本" value={summary.rated} icon={<Star size={22} />} />
       </section>
+
+      {recentCompletedItems.length > 0 ? (
+        <section className="mt-10">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-2xl font-bold">最近読了した本</h2>
+            <Link href="/shelf" className="text-sm font-semibold text-sage hover:underline">
+              本棚で見る
+            </Link>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            {recentCompletedItems.map(({ book, userBook }) => {
+              const completedDate = userBook.finishedAt ?? userBook.updatedAt;
+              return (
+                <Link
+                  href={`/books/${encodeURIComponent(book.id)}`}
+                  key={userBook.id}
+                  onClick={() => localStorageBookshelfRepository.rememberBook(book)}
+                  className="surface flex gap-4 p-4 transition hover:-translate-y-0.5 hover:shadow-lg"
+                >
+                  <BookCover src={book.thumbnailUrl} title={book.title} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold text-sage">
+                      読了日: {formatCompletedDate(completedDate)}
+                    </p>
+                    <h3 className="mt-2 line-clamp-3 font-bold leading-snug">{book.title}</h3>
+                    <p className="mt-2 line-clamp-2 text-sm text-muted">
+                      {formatAuthors(book.authors)}
+                    </p>
+                    <p className="mt-4 flex items-center gap-1 text-sm font-semibold text-ink">
+                      <Star size={16} aria-hidden="true" />
+                      {userBook.personalRating
+                        ? `自分の評価: ${userBook.personalRating} / 5`
+                        : "自分の評価: 未評価"}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-10">
         <div className="mb-4 flex items-center justify-between gap-3">

@@ -18,7 +18,7 @@ export const mockBooks: Book[] = [
     categories: ["読書", "教養"],
     reviewAverage: 4.1,
     reviewCount: 128,
-    productUrl: "https://books.rakuten.co.jp/",
+    productUrl: "https://books.google.com/books?q=isbn:9784004319015",
     source: "mock",
     sourceId: "demo-1"
   },
@@ -39,7 +39,7 @@ export const mockBooks: Book[] = [
     categories: ["読書法", "学習"],
     reviewAverage: 4.3,
     reviewCount: 92,
-    productUrl: "https://books.rakuten.co.jp/",
+    productUrl: "https://books.google.com/books?q=isbn:9784480689641",
     source: "mock",
     sourceId: "demo-2"
   },
