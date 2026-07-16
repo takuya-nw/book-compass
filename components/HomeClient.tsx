@@ -17,6 +17,7 @@ import { formatAuthors } from "@/utils/formatters";
 import { BookCover } from "@/components/BookCover";
 import { createHomeSummary, getRecentCompletedItems } from "@/utils/homeSummary";
 import { Notice } from "@/components/Notice";
+import { formatReadingDate } from "@/utils/readingDates";
 
 function StatCard({
   label,
@@ -61,14 +62,6 @@ export function HomeClient() {
     )
     .slice(0, 4);
   const recentCompletedItems = useMemo(() => getRecentCompletedItems(items), [items]);
-
-  function formatCompletedDate(date: string): string {
-    return new Intl.DateTimeFormat("ja-JP", {
-      year: "numeric",
-      month: "long",
-      day: "numeric"
-    }).format(new Date(date));
-  }
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
@@ -141,7 +134,7 @@ export function HomeClient() {
                   <BookCover src={book.thumbnailUrl} title={book.title} />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs font-bold text-sage">
-                      読了日: {formatCompletedDate(completedDate)}
+                      読了日: {formatReadingDate(completedDate)}
                     </p>
                     <h3 className="mt-2 line-clamp-3 font-bold leading-snug">{book.title}</h3>
                     <p className="mt-2 line-clamp-2 text-sm text-muted">

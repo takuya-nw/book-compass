@@ -24,7 +24,7 @@ export function PersonalReviewPanel({
   }, [userBook?.personalRating, userBook?.personalNote]);
 
   return (
-    <section className="mt-6 rounded-lg border border-line bg-[#fffaf0] p-4">
+    <section className="mt-6 border-t border-line pt-6">
       <div className="mb-4">
         <h2 className="text-lg font-bold">自分の読後メモ</h2>
         <p className="mt-1 text-sm text-muted">

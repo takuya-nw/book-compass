@@ -3,6 +3,7 @@ import type { Book } from "@/types/book";
 import {
   addBookToShelf,
   createEmptyBookshelf,
+  updateUserBookDates,
   updateUserBookReview,
   updateUserBookStatus
 } from "@/repositories/bookshelfRepository";
@@ -50,5 +51,20 @@ describe("bookshelf repository", () => {
 
     expect(updated.userBooks[0].personalRating).toBe(5);
     expect(updated.userBooks[0].personalNote).toBe("読み返したい");
+  });
+
+  it("読み始めた日と読み終えた日を更新・消去できる", () => {
+    const added = addBookToShelf(createEmptyBookshelf(), book);
+    const updated = updateUserBookDates(added.data, book.id, {
+      startedAt: "2026-07-01T00:00:00.000Z",
+      finishedAt: "2026-07-10T00:00:00.000Z"
+    });
+
+    expect(updated.userBooks[0].startedAt).toBe("2026-07-01T00:00:00.000Z");
+    expect(updated.userBooks[0].finishedAt).toBe("2026-07-10T00:00:00.000Z");
+
+    const cleared = updateUserBookDates(updated, book.id, {});
+    expect(cleared.userBooks[0].startedAt).toBeUndefined();
+    expect(cleared.userBooks[0].finishedAt).toBeUndefined();
   });
 });

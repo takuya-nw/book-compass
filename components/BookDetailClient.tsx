@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BookCover } from "@/components/BookCover";
 import { Notice } from "@/components/Notice";
 import { PersonalReviewPanel } from "@/components/PersonalReviewPanel";
+import { ReadingDatesPanel } from "@/components/ReadingDatesPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusControls } from "@/components/StatusControls";
 import {
@@ -17,6 +18,7 @@ import { localStorageBookshelfRepository } from "@/repositories/localStorageBook
 import type { Book, BookshelfData, ReadingStatus } from "@/types/book";
 import { formatIsbn, formatReviewSummary } from "@/utils/bookDisplay";
 import { formatAuthors, formatPrice } from "@/utils/formatters";
+import type { ReadingDates } from "@/utils/readingDates";
 
 const sourceLabels = {
   rakuten: "楽天ブックス",
@@ -134,6 +136,21 @@ export function BookDetailClient({ id }: { id: string }) {
     refreshShelf();
   }
 
+  function handleDatesSave(dates: ReadingDates) {
+    if (!book || !shelfItem) {
+      return;
+    }
+
+    const result = localStorageBookshelfRepository.updateDates(book.id, dates);
+    if (result.ok) {
+      setMessage("読書日付を保存しました。");
+      setError("");
+      refreshShelf();
+    } else {
+      setError(result.error);
+    }
+  }
+
   if (!book) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
@@ -222,6 +239,13 @@ export function BookDetailClient({ id }: { id: string }) {
               ) : null}
             </div>
           </div>
+
+          {shelfItem ? (
+            <ReadingDatesPanel
+              userBook={shelfItem.userBook}
+              onSave={handleDatesSave}
+            />
+          ) : null}
 
           <PersonalReviewPanel
             userBook={shelfItem?.userBook}

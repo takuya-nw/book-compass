@@ -5,6 +5,7 @@ import {
   addBookToShelf,
   createEmptyBookshelf,
   removeUserBook,
+  updateUserBookDates,
   updateUserBookReview,
   updateUserBookStatus
 } from "@/repositories/bookshelfRepository";
@@ -89,6 +90,17 @@ export const localStorageBookshelfRepository = {
       return loaded;
     }
     return this.save(updateUserBookReview(loaded.value, bookId, review));
+  },
+
+  updateDates(
+    bookId: string,
+    dates: { startedAt?: string; finishedAt?: string }
+  ) {
+    const loaded = this.load();
+    if (!loaded.ok) {
+      return loaded;
+    }
+    return this.save(updateUserBookDates(loaded.value, bookId, dates));
   },
 
   remove(bookId: string) {

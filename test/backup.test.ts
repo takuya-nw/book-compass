@@ -21,6 +21,8 @@ const data: BookshelfData = {
       status: "completed",
       personalRating: 4,
       personalNote: "バックアップ確認用メモ",
+      startedAt: "2026-07-01T00:00:00.000Z",
+      finishedAt: "2026-07-10T00:00:00.000Z",
       registeredAt: "2026-07-12T00:00:00.000Z",
       updatedAt: "2026-07-12T00:00:00.000Z"
     }

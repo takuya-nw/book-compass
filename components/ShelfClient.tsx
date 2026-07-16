@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Star, Trash2 } from "lucide-react";
+import { CalendarDays, Search, Star, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BackupPanel } from "@/components/BackupPanel";
 import { BookCover } from "@/components/BookCover";
@@ -21,6 +21,7 @@ import {
   type ShelfSort,
   type ShelfStatusFilter
 } from "@/utils/shelfView";
+import { formatReadingDate } from "@/utils/readingDates";
 
 const filters: { value: ShelfStatusFilter; label: string }[] = [
   { value: "all", label: "すべて" },
@@ -202,6 +203,18 @@ export function ShelfClient() {
                         </p>
                         {userBook.personalNote ? (
                           <p className="line-clamp-2">{userBook.personalNote}</p>
+                        ) : null}
+                        {userBook.startedAt ? (
+                          <p className="mt-1 flex items-center gap-1">
+                            <CalendarDays size={16} aria-hidden="true" />
+                            開始: {formatReadingDate(userBook.startedAt)}
+                          </p>
+                        ) : null}
+                        {userBook.finishedAt ? (
+                          <p className="flex items-center gap-1">
+                            <CalendarDays size={16} aria-hidden="true" />
+                            読了: {formatReadingDate(userBook.finishedAt)}
+                          </p>
                         ) : null}
                       </div>
                     </div>

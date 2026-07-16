@@ -1,5 +1,6 @@
 import type { Book, BookshelfData, ReadingStatus, UserBook } from "@/types/book";
 import { areSameBook } from "@/utils/bookIdentity";
+import type { ReadingDates } from "@/utils/readingDates";
 
 export function createEmptyBookshelf(): BookshelfData {
   return {
@@ -105,6 +106,27 @@ export function updateUserBookReview(
             ...userBook,
             personalRating: normalizedRating,
             personalNote: normalizedNote,
+            updatedAt: now
+          }
+        : userBook
+    )
+  };
+}
+
+export function updateUserBookDates(
+  data: BookshelfData,
+  bookId: string,
+  dates: ReadingDates
+): BookshelfData {
+  const now = new Date().toISOString();
+  return {
+    ...data,
+    userBooks: data.userBooks.map((userBook) =>
+      userBook.bookId === bookId
+        ? {
+            ...userBook,
+            startedAt: dates.startedAt,
+            finishedAt: dates.finishedAt,
             updatedAt: now
           }
         : userBook
