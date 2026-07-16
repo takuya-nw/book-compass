@@ -95,6 +95,24 @@ describe("おすすめ候補", () => {
     ]);
   });
 
+  it("気になるとした本の著者とジャンルを検索条件にできる", () => {
+    const seeds = createRecommendationSeeds([], 3, [
+      {
+        bookKey: "isbn:9784000000020",
+        bookTitle: "気になる本",
+        signal: "interested",
+        authors: ["山田太郎"],
+        categories: ["教養"],
+        updatedAt: "2026-07-16T00:00:00.000Z"
+      }
+    ]);
+
+    expect(seeds.map(({ kind, value }) => ({ kind, value }))).toEqual([
+      { kind: "author", value: "山田太郎" },
+      { kind: "category", value: "教養" }
+    ]);
+  });
+
   it("興味なしと低評価の本はおすすめ条件に使わない", () => {
     const seed = createRecommendationSeed([
       createItem("1", { categories: ["歴史"], status: "notInterested" }),
@@ -213,6 +231,65 @@ describe("おすすめ候補", () => {
     expect(ranked.reasons[0]).toBe(
       "「本favorite」と同じ著者（山田太郎）"
     );
+  });
+
+  it("気になるとした本に近い著者を上位にする", () => {
+    const generic = createBook("generic", { authors: ["別の著者"] });
+    const sameAuthor = createBook("same-author", { authors: ["山田太郎"] });
+    const ranked = rankRecommendationCandidates(
+      [
+        {
+          seed: { kind: "category", value: "教養", basedOnTitles: ["本1"] },
+          books: [generic, sameAuthor]
+        }
+      ],
+      [],
+      {
+        feedback: [
+          {
+            bookKey: "isbn:9784000000021",
+            bookTitle: "気になる本",
+            signal: "interested",
+            authors: ["山田太郎"],
+            categories: [],
+            updatedAt: "2026-07-16T00:00:00.000Z"
+          }
+        ]
+      }
+    );
+
+    expect(ranked[0].book).toEqual(sameAuthor);
+    expect(ranked[0].reasons[0]).toBe(
+      "「気になる本」への「気になる」と同じ著者"
+    );
+  });
+
+  it("合わないとした本に近い著者の順位を下げる", () => {
+    const sameAuthor = createBook("same-author", { authors: ["山田太郎"] });
+    const generic = createBook("generic", { authors: ["別の著者"] });
+    const ranked = rankRecommendationCandidates(
+      [
+        {
+          seed: { kind: "category", value: "教養", basedOnTitles: ["本1"] },
+          books: [sameAuthor, generic]
+        }
+      ],
+      [],
+      {
+        feedback: [
+          {
+            bookKey: "isbn:9784000000022",
+            bookTitle: "合わなかった本",
+            signal: "notForMe",
+            authors: ["山田太郎"],
+            categories: [],
+            updatedAt: "2026-07-16T00:00:00.000Z"
+          }
+        ]
+      }
+    );
+
+    expect(ranked[0].book).toEqual(generic);
   });
 
   it("複数の検索条件に出た同じISBNの本を統合する", () => {

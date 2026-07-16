@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { BookshelfData } from "@/types/book";
-import { exportBookshelfData, parseBackupData } from "@/utils/backup";
+import {
+  exportBookCompassBackup,
+  exportBookshelfData,
+  parseBackupData,
+  parseBookCompassBackup
+} from "@/utils/backup";
+import type { RecommendationPreferences } from "@/utils/recommendationPreferences";
 
 const data: BookshelfData = {
   version: 1,
@@ -29,10 +35,39 @@ const data: BookshelfData = {
   ]
 };
 
+const recommendationPreferences: RecommendationPreferences = {
+  version: 1,
+  dismissedBookKeys: ["isbn:9784000000099"],
+  feedback: [
+    {
+      bookKey: "isbn:9784000000001",
+      bookTitle: "気になる本",
+      signal: "interested",
+      authors: ["山田 太郎"],
+      categories: ["教養"],
+      updatedAt: "2026-07-16T00:00:00.000Z"
+    }
+  ]
+};
+
 describe("backup", () => {
   it("JSONバックアップの出力と復元ができる", () => {
     const exported = exportBookshelfData(data);
     expect(parseBackupData(exported)).toEqual(data);
+  });
+
+  it("本棚とおすすめ学習データを一緒に出力・復元できる", () => {
+    const exported = exportBookCompassBackup(data, recommendationPreferences);
+    expect(parseBookCompassBackup(exported)).toEqual({
+      bookshelf: data,
+      recommendationPreferences
+    });
+  });
+
+  it("旧形式の本棚バックアップも復元できる", () => {
+    expect(parseBookCompassBackup(exportBookshelfData(data))).toEqual({
+      bookshelf: data
+    });
   });
 
   it("不正なJSONを拒否する", () => {
@@ -48,6 +83,17 @@ describe("backup", () => {
     const invalidDate = structuredClone(data);
     invalidDate.userBooks[0].updatedAt = "日付ではない";
     expect(() => parseBackupData(JSON.stringify(invalidDate))).toThrow();
+  });
+
+  it("不正なおすすめ学習データを拒否する", () => {
+    const invalid = JSON.parse(
+      exportBookCompassBackup(data, recommendationPreferences)
+    );
+    invalid.recommendationPreferences.feedback[0].updatedAt = "日付ではない";
+
+    expect(() => parseBookCompassBackup(JSON.stringify(invalid))).toThrow(
+      "おすすめの学習データ"
+    );
   });
 
   it("重複IDや存在しない本への読書記録を拒否する", () => {

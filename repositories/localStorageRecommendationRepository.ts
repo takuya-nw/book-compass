@@ -6,7 +6,8 @@ import { getBookIdentityKey } from "@/utils/bookIdentity";
 import {
   createEmptyRecommendationPreferences,
   parseRecommendationPreferences,
-  type RecommendationPreferences
+  type RecommendationPreferences,
+  type RecommendationSignal
 } from "@/utils/recommendationPreferences";
 
 const STORAGE_KEY = "book-compass-recommendation-preferences-v1";
@@ -29,7 +30,7 @@ export const localStorageRecommendationRepository = {
       return {
         ok: false,
         error:
-          "おすすめの除外設定を読み込めませんでした。ブラウザの保存設定をご確認ください。"
+          "おすすめの学習データを読み込めませんでした。ブラウザの保存設定をご確認ください。"
       };
     }
   },
@@ -48,7 +49,7 @@ export const localStorageRecommendationRepository = {
       return {
         ok: false,
         error:
-          "おすすめの除外設定を保存できませんでした。ブラウザの保存設定をご確認ください。"
+          "おすすめの学習データを保存できませんでした。ブラウザの保存設定をご確認ください。"
       };
     }
   },
@@ -61,11 +62,56 @@ export const localStorageRecommendationRepository = {
 
     const key = getBookIdentityKey(book);
     return this.save({
-      version: 1,
+      ...loaded.value,
       dismissedBookKeys: Array.from(
         new Set([...loaded.value.dismissedBookKeys, key])
       )
     });
+  },
+
+  setFeedback(
+    book: Book,
+    signal?: RecommendationSignal
+  ): RepositoryResult<RecommendationPreferences> {
+    const loaded = this.load();
+    if (!loaded.ok) {
+      return loaded;
+    }
+
+    const bookKey = getBookIdentityKey(book);
+    const otherFeedback = loaded.value.feedback.filter(
+      (item) => item.bookKey !== bookKey
+    );
+    const feedback = signal
+      ? [
+          ...otherFeedback,
+          {
+            bookKey,
+            bookTitle: book.title,
+            signal,
+            authors: book.authors,
+            categories: book.categories,
+            updatedAt: new Date().toISOString()
+          }
+        ].slice(-200)
+      : otherFeedback;
+
+    return this.save({
+      ...loaded.value,
+      feedback
+    });
+  },
+
+  clearDismissed(): RepositoryResult<RecommendationPreferences> {
+    const loaded = this.load();
+    return loaded.ok
+      ? this.save({ ...loaded.value, dismissedBookKeys: [] })
+      : loaded;
+  },
+
+  clearFeedback(): RepositoryResult<RecommendationPreferences> {
+    const loaded = this.load();
+    return loaded.ok ? this.save({ ...loaded.value, feedback: [] }) : loaded;
   },
 
   clear(): RepositoryResult<RecommendationPreferences> {

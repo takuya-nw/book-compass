@@ -30,6 +30,12 @@ import {
   rankRecommendationCandidates,
   type RecommendationSearchGroup
 } from "@/utils/recommendations";
+import { getBookIdentityKey } from "@/utils/bookIdentity";
+import {
+  createEmptyRecommendationPreferences,
+  type RecommendationPreferences,
+  type RecommendationSignal
+} from "@/utils/recommendationPreferences";
 
 const RECOMMENDATION_PAGE_SIZE = 4;
 
@@ -68,7 +74,9 @@ export function HomeClient() {
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
   const [selectedRecommendationKey, setSelectedRecommendationKey] = useState("all");
   const [recommendationOffset, setRecommendationOffset] = useState(0);
-  const [dismissedBookKeys, setDismissedBookKeys] = useState<string[]>([]);
+  const [recommendationPreferences, setRecommendationPreferences] =
+    useState<RecommendationPreferences>(createEmptyRecommendationPreferences());
+  const dismissedBookKeys = recommendationPreferences.dismissedBookKeys;
 
   useEffect(() => {
     const loaded = localStorageBookshelfRepository.load();
@@ -80,7 +88,7 @@ export function HomeClient() {
 
     const loadedPreferences = localStorageRecommendationRepository.load();
     if (loadedPreferences.ok) {
-      setDismissedBookKeys(loadedPreferences.value.dismissedBookKeys);
+      setRecommendationPreferences(loadedPreferences.value);
     } else {
       setRecommendationFeedback(loadedPreferences.error);
       setRecommendationFeedbackTone("error");
@@ -90,7 +98,10 @@ export function HomeClient() {
 
   const items = useMemo(() => getShelfItems(data), [data]);
   const summary = useMemo(() => createHomeSummary(items), [items]);
-  const recommendationSeeds = useMemo(() => createRecommendationSeeds(items), [items]);
+  const recommendationSeeds = useMemo(
+    () => createRecommendationSeeds(items, 3, recommendationPreferences.feedback),
+    [items, recommendationPreferences.feedback]
+  );
   const recommendationSeed = recommendationSeeds[0];
   const selectedRecommendationSeed = recommendationSeeds.find(
     (seed) => getRecommendationSeedKey(seed) === selectedRecommendationKey
@@ -223,9 +234,15 @@ export function HomeClient() {
     () =>
       rankRecommendationCandidates(filteredRecommendationGroups, items, {
         excludedBookKeys: dismissedBookKeys,
+        feedback: recommendationPreferences.feedback,
         limit: 24
       }),
-    [dismissedBookKeys, filteredRecommendationGroups, items]
+    [
+      dismissedBookKeys,
+      filteredRecommendationGroups,
+      items,
+      recommendationPreferences.feedback
+    ]
   );
 
   const visibleRecommendations = rankedRecommendations.slice(
@@ -270,23 +287,72 @@ export function HomeClient() {
       return;
     }
 
-    setDismissedBookKeys(result.value.dismissedBookKeys);
+    setRecommendationPreferences(result.value);
     setRecommendationOffset(0);
     setRecommendationFeedback("この本を今後のおすすめから外しました。");
     setRecommendationFeedbackTone("success");
   }
 
-  function handleResetDismissedRecommendations() {
-    const result = localStorageRecommendationRepository.clear();
+  function handleRecommendationSignal(book: Book, signal: RecommendationSignal) {
+    const bookKey = getBookIdentityKey(book);
+    const currentSignal = recommendationPreferences.feedback.find(
+      (item) => item.bookKey === bookKey
+    )?.signal;
+    const nextSignal = currentSignal === signal ? undefined : signal;
+    const result = localStorageRecommendationRepository.setFeedback(
+      book,
+      nextSignal
+    );
     if (!result.ok) {
       setRecommendationFeedback(result.error);
       setRecommendationFeedbackTone("error");
       return;
     }
 
-    setDismissedBookKeys([]);
+    setRecommendationPreferences(result.value);
+    setRecommendationOffset(0);
+    setRecommendationFeedback(
+      nextSignal === "interested"
+        ? "「気になる」を学習しました。似た著者やジャンルを優先します。"
+        : nextSignal === "notForMe"
+          ? "「合わない」を学習しました。似た候補の順位を下げます。"
+          : "この本への反応を取り消しました。"
+    );
+    setRecommendationFeedbackTone("success");
+  }
+
+  function handleResetDismissedRecommendations() {
+    const result = localStorageRecommendationRepository.clearDismissed();
+    if (!result.ok) {
+      setRecommendationFeedback(result.error);
+      setRecommendationFeedbackTone("error");
+      return;
+    }
+
+    setRecommendationPreferences(result.value);
     setRecommendationOffset(0);
     setRecommendationFeedback("おすすめから外した本を、再び候補に含めます。");
+    setRecommendationFeedbackTone("success");
+  }
+
+  function handleResetRecommendationFeedback() {
+    const confirmed = window.confirm(
+      "「気になる」「合わない」の学習履歴をすべて削除します。よろしいですか？"
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const result = localStorageRecommendationRepository.clearFeedback();
+    if (!result.ok) {
+      setRecommendationFeedback(result.error);
+      setRecommendationFeedbackTone("error");
+      return;
+    }
+
+    setRecommendationPreferences(result.value);
+    setRecommendationOffset(0);
+    setRecommendationFeedback("おすすめの学習履歴をリセットしました。");
     setRecommendationFeedbackTone("success");
   }
 
@@ -450,6 +516,21 @@ export function HomeClient() {
               </button>
             </div>
           ) : null}
+          {recommendationPreferences.feedback.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+              <p>
+                学習した反応: {recommendationPreferences.feedback.length}冊
+              </p>
+              <button
+                type="button"
+                onClick={handleResetRecommendationFeedback}
+                className="inline-flex items-center gap-1 font-semibold text-sage hover:underline"
+              >
+                <Undo2 size={16} aria-hidden="true" />
+                学習をリセット
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {!shelfReady || recommendationsLoading ? (
@@ -464,15 +545,23 @@ export function HomeClient() {
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {visibleRecommendations.map(({ book, reasons }) => (
-              <BookCard
-                key={`${book.source}-${book.sourceId}`}
-                book={book}
-                onDismiss={handleDismissRecommendation}
-                onMessage={handleRecommendationMessage}
-                recommendationReasons={reasons}
-              />
-            ))}
+            {visibleRecommendations.map(({ book, reasons }) => {
+              const bookKey = getBookIdentityKey(book);
+              const signal = recommendationPreferences.feedback.find(
+                (item) => item.bookKey === bookKey
+              )?.signal;
+              return (
+                <BookCard
+                  key={`${book.source}-${book.sourceId}`}
+                  book={book}
+                  onDismiss={handleDismissRecommendation}
+                  onMessage={handleRecommendationMessage}
+                  onRecommendationSignal={handleRecommendationSignal}
+                  recommendationReasons={reasons}
+                  recommendationSignal={signal}
+                />
+              );
+            })}
           </div>
         )}
       </section>

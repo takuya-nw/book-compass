@@ -5,6 +5,7 @@ import {
   normalizeText
 } from "@/utils/bookIdentity";
 import type { ShelfItem } from "@/utils/shelfView";
+import type { RecommendationFeedback } from "@/utils/recommendationPreferences";
 
 export type RecommendationSeed = {
   kind: "category" | "author";
@@ -72,7 +73,8 @@ function addCandidate(
 
 export function createRecommendationSeeds(
   items: ShelfItem[],
-  limit = 3
+  limit = 3,
+  feedback: RecommendationFeedback[] = []
 ): RecommendationSeed[] {
   const candidates = new Map<string, Candidate>();
 
@@ -89,6 +91,17 @@ export function createRecommendationSeeds(
       addCandidate(candidates, "author", author, score, item.book.title)
     );
   });
+
+  feedback
+    .filter((item) => item.signal === "interested")
+    .forEach((item) => {
+      item.categories.forEach((category) =>
+        addCandidate(candidates, "category", category, 3, item.bookTitle)
+      );
+      item.authors.forEach((author) =>
+        addCandidate(candidates, "author", author, 6, item.bookTitle)
+      );
+    });
 
   return [...candidates.values()]
     .sort((a, b) => {
@@ -165,6 +178,7 @@ export function getRecommendationCandidates(
 
 type RankingOptions = {
   excludedBookKeys?: string[];
+  feedback?: RecommendationFeedback[];
   limit?: number;
 };
 
@@ -228,6 +242,66 @@ function addShelfAffinity(candidate: RankingCandidate, item: ShelfItem) {
   }
 }
 
+function hasNormalizedOverlap(left: string[], right: string[]): boolean {
+  const normalizedRight = toNormalizedSet(right);
+  return left.some((value) => normalizedRight.has(normalizeText(value)));
+}
+
+function addFeedbackAffinity(
+  candidate: RankingCandidate,
+  feedback: RecommendationFeedback
+) {
+  const candidateKey = getBookIdentityKey(candidate.book);
+  if (candidateKey === feedback.bookKey) {
+    if (feedback.signal === "interested") {
+      candidate.score += 30;
+      addWeightedReason(
+        candidate.personalReasons,
+        "「気になる」と記録した本",
+        30
+      );
+    } else {
+      candidate.score -= 80;
+    }
+    return;
+  }
+
+  const sameAuthor = hasNormalizedOverlap(
+    candidate.book.authors,
+    feedback.authors
+  );
+  const sameCategory = hasNormalizedOverlap(
+    candidate.book.categories,
+    feedback.categories
+  );
+
+  if (feedback.signal === "interested") {
+    if (sameAuthor) {
+      candidate.score += 14;
+      addWeightedReason(
+        candidate.personalReasons,
+        `「${feedback.bookTitle}」への「気になる」と同じ著者`,
+        14
+      );
+    }
+    if (sameCategory) {
+      candidate.score += 7;
+      addWeightedReason(
+        candidate.personalReasons,
+        `「${feedback.bookTitle}」への「気になる」と近いジャンル`,
+        7
+      );
+    }
+  } else {
+    if (sameAuthor) {
+      candidate.score -= 12;
+    }
+    if (sameCategory) {
+      candidate.score -= 6;
+    }
+  }
+}
+
 export function rankRecommendationCandidates(
   groups: RecommendationSearchGroup[],
   shelfItems: ShelfItem[],
@@ -269,6 +343,7 @@ export function rankRecommendationCandidates(
 
   candidates.forEach((candidate) => {
     shelfItems.forEach((item) => addShelfAffinity(candidate, item));
+    options.feedback?.forEach((item) => addFeedbackAffinity(candidate, item));
 
     if (
       candidate.book.reviewAverage !== undefined &&

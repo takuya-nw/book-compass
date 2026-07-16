@@ -1,4 +1,13 @@
 import type { Book, BookshelfData, UserBook } from "@/types/book";
+import {
+  parseRecommendationPreferencesValue,
+  type RecommendationPreferences
+} from "@/utils/recommendationPreferences";
+
+export type ParsedBookCompassBackup = {
+  bookshelf: BookshelfData;
+  recommendationPreferences?: RecommendationPreferences;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -131,4 +140,54 @@ export function parseBackupData(raw: string): BookshelfData {
 
 export function exportBookshelfData(data: BookshelfData): string {
   return JSON.stringify(data, null, 2);
+}
+
+export function parseBookCompassBackup(raw: string): ParsedBookCompassBackup {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("JSONの形式が正しくありません。バックアップファイルをご確認ください。");
+  }
+
+  if (isBookshelfData(parsed)) {
+    return { bookshelf: parsed };
+  }
+
+  if (
+    !isRecord(parsed) ||
+    parsed.format !== "book-compass-backup" ||
+    parsed.version !== 2 ||
+    !isBookshelfData(parsed.bookshelf)
+  ) {
+    throw new Error("Book Compassのバックアップデータとして読み込めませんでした。");
+  }
+
+  try {
+    return {
+      bookshelf: parsed.bookshelf,
+      recommendationPreferences: parseRecommendationPreferencesValue(
+        parsed.recommendationPreferences
+      )
+    };
+  } catch {
+    throw new Error("おすすめの学習データが正しくありません。バックアップファイルをご確認ください。");
+  }
+}
+
+export function exportBookCompassBackup(
+  bookshelf: BookshelfData,
+  recommendationPreferences: RecommendationPreferences
+): string {
+  return JSON.stringify(
+    {
+      format: "book-compass-backup",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      bookshelf,
+      recommendationPreferences
+    },
+    null,
+    2
+  );
 }

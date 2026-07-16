@@ -2,9 +2,8 @@
 
 import { Download, Upload } from "lucide-react";
 import { ChangeEvent, useRef, useState } from "react";
-import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
+import { localStorageBackupRepository } from "@/repositories/localStorageBackupRepository";
 import type { BookshelfData } from "@/types/book";
-import { exportBookshelfData } from "@/utils/backup";
 import { Notice } from "@/components/Notice";
 
 type BackupPanelProps = {
@@ -18,7 +17,14 @@ export function BackupPanel({ data, onRestore }: BackupPanelProps) {
   const [error, setError] = useState("");
 
   function exportJson() {
-    const blob = new Blob([exportBookshelfData(data)], {
+    const result = localStorageBackupRepository.export(data);
+    if (!result.ok) {
+      setError(result.error);
+      setMessage("");
+      return;
+    }
+
+    const blob = new Blob([result.value], {
       type: "application/json"
     });
     const url = URL.createObjectURL(blob);
@@ -39,20 +45,20 @@ export function BackupPanel({ data, onRestore }: BackupPanelProps) {
     }
 
     const confirmed = window.confirm(
-      "現在の本棚データをバックアップ内容で上書きします。よろしいですか？"
+      "現在の本棚データを上書きします。新形式のバックアップでは、おすすめの学習データも上書きします。よろしいですか？"
     );
     if (!confirmed) {
       return;
     }
 
     try {
-      const result = localStorageBookshelfRepository.restore(await file.text());
+      const result = localStorageBackupRepository.restore(await file.text());
       if (!result.ok) {
         setError(result.error);
         setMessage("");
         return;
       }
-      onRestore(result.value);
+      onRestore(result.value.bookshelf);
       setMessage("バックアップから復元しました。");
       setError("");
     } catch (restoreError) {
@@ -70,7 +76,7 @@ export function BackupPanel({ data, onRestore }: BackupPanelProps) {
       <div>
         <h2 className="text-xl font-bold">保存・バックアップ</h2>
         <p className="mt-1 text-sm text-muted">
-          本棚データはこのブラウザ内に保存されます。
+          本棚とおすすめの学習データはこのブラウザ内に保存されます。
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
