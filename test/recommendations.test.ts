@@ -3,7 +3,8 @@ import type { Book, UserBook } from "@/types/book";
 import {
   createRecommendationSeed,
   createRecommendationSeeds,
-  getRecommendationCandidates
+  getRecommendationCandidates,
+  rankRecommendationCandidates
 } from "@/utils/recommendations";
 import type { ShelfItem } from "@/utils/shelfView";
 
@@ -36,15 +37,16 @@ function createItem(
   };
 }
 
-function createBook(id: string, isbn13?: string): Book {
+function createBook(id: string, options: string | Partial<Book> = {}): Book {
+  const overrides = typeof options === "string" ? { isbn13: options } : options;
   return {
     id,
-    isbn13,
     title: `候補${id}`,
     authors: ["著者"],
     categories: [],
     source: "google",
-    sourceId: id
+    sourceId: id,
+    ...overrides
   };
 }
 
@@ -121,5 +123,120 @@ describe("おすすめ候補", () => {
         excludedBookKeys: ["isbn:9784000000003"]
       })
     ).toEqual([candidate]);
+  });
+
+  it("高評価した読了本と同じ著者の候補を上位にする", () => {
+    const shelfItem = createItem("favorite", {
+      authors: ["山田太郎"],
+      categories: ["心理学"],
+      status: "completed",
+      rating: 5
+    });
+    const generic = createBook("generic", {
+      authors: ["別の著者"],
+      categories: ["心理学"]
+    });
+    const sameAuthor = createBook("same-author", {
+      authors: ["山田太郎"],
+      categories: []
+    });
+
+    const ranked = rankRecommendationCandidates(
+      [
+        {
+          seed: {
+            kind: "category",
+            value: "心理学",
+            basedOnTitles: ["本favorite"]
+          },
+          books: [generic, sameAuthor]
+        }
+      ],
+      [shelfItem]
+    );
+
+    expect(ranked[0].book).toEqual(sameAuthor);
+    expect(ranked[0].reasons).toContain(
+      "「本favorite」と同じ著者（山田太郎）"
+    );
+  });
+
+  it("低評価の本との一致は順位を押し上げない", () => {
+    const lowRatedItem = createItem("low", {
+      authors: ["山田太郎"],
+      status: "completed",
+      rating: 2
+    });
+    const firstResult = createBook("first", { authors: ["別の著者"] });
+    const lowRatedMatch = createBook("match", { authors: ["山田太郎"] });
+
+    const ranked = rankRecommendationCandidates(
+      [
+        {
+          seed: {
+            kind: "category",
+            value: "教養",
+            basedOnTitles: ["本low"]
+          },
+          books: [firstResult, lowRatedMatch]
+        }
+      ],
+      [lowRatedItem]
+    );
+
+    expect(ranked[0].book).toEqual(firstResult);
+    expect(ranked[1].reasons).toEqual(["ジャンル「教養」の検索候補"]);
+  });
+
+  it("順位への影響が大きい本をおすすめ理由でも優先する", () => {
+    const wantToReadItem = createItem("later", {
+      authors: ["山田太郎"],
+      status: "wantToRead"
+    });
+    const favoriteItem = createItem("favorite", {
+      authors: ["山田太郎"],
+      status: "completed",
+      rating: 5
+    });
+    const candidate = createBook("candidate", { authors: ["山田太郎"] });
+
+    const [ranked] = rankRecommendationCandidates(
+      [
+        {
+          seed: { kind: "author", value: "山田太郎", basedOnTitles: ["本favorite"] },
+          books: [candidate]
+        }
+      ],
+      [wantToReadItem, favoriteItem]
+    );
+
+    expect(ranked.reasons[0]).toBe(
+      "「本favorite」と同じ著者（山田太郎）"
+    );
+  });
+
+  it("複数の検索条件に出た同じISBNの本を統合する", () => {
+    const first = createBook("first", "9784000000010");
+    const duplicate = createBook("duplicate", "9784000000010");
+
+    const ranked = rankRecommendationCandidates(
+      [
+        {
+          seed: { kind: "category", value: "教養", basedOnTitles: ["本1"] },
+          books: [first]
+        },
+        {
+          seed: { kind: "author", value: "山田太郎", basedOnTitles: ["本1"] },
+          books: [duplicate]
+        }
+      ],
+      []
+    );
+
+    expect(ranked).toHaveLength(1);
+    expect(ranked[0].reasons).toEqual([
+      "ジャンル「教養」の検索候補",
+      "山田太郎さんの著書"
+    ]);
   });
 });

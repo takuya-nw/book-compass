@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Info, Plus, X } from "lucide-react";
+import { Check, Info, Plus, Sparkles, X } from "lucide-react";
 import type { Book, ReadingStatus } from "@/types/book";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import { formatIsbn, formatReviewAverage, formatReviewCount } from "@/utils/bookDisplay";
@@ -12,6 +12,7 @@ type BookCardProps = {
   book: Book;
   onMessage?: (message: string, tone: "success" | "error") => void;
   onDismiss?: (book: Book) => void;
+  recommendationReasons?: string[];
   shelfStatus?: ReadingStatus;
 };
 
@@ -21,7 +22,13 @@ const sourceLabels = {
   mock: "デモデータ"
 };
 
-export function BookCard({ book, onDismiss, onMessage, shelfStatus }: BookCardProps) {
+export function BookCard({
+  book,
+  onDismiss,
+  onMessage,
+  recommendationReasons,
+  shelfStatus
+}: BookCardProps) {
   function addToShelf() {
     const result = localStorageBookshelfRepository.addBook(book);
     onMessage?.(
@@ -46,6 +53,19 @@ export function BookCard({ book, onDismiss, onMessage, shelfStatus }: BookCardPr
         >
           <X size={18} aria-hidden="true" />
         </button>
+      ) : null}
+      {recommendationReasons && recommendationReasons.length > 0 ? (
+        <div
+          className={`mb-3 flex items-start gap-2 rounded-md bg-[#edf5ef] py-2 pl-3 text-sm text-ink ${
+            onDismiss ? "pr-12" : "pr-3"
+          }`}
+        >
+          <Sparkles className="mt-0.5 shrink-0 text-sage" size={17} aria-hidden="true" />
+          <p className="leading-6">
+            <span className="font-bold">おすすめの理由: </span>
+            {recommendationReasons.join("・")}
+          </p>
+        </div>
       ) : null}
       <div className={`flex gap-4 ${onDismiss ? "pr-10" : ""}`}>
         <BookCover src={book.thumbnailUrl} title={book.title} />
