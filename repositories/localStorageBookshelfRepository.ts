@@ -5,6 +5,7 @@ import {
   addBookToShelf,
   createEmptyBookshelf,
   removeUserBook,
+  updateUserBookReview,
   updateUserBookStatus
 } from "@/repositories/bookshelfRepository";
 import { parseBackupData } from "@/utils/backup";
@@ -81,6 +82,17 @@ export const localStorageBookshelfRepository = {
       return loaded;
     }
     return this.save(updateUserBookStatus(loaded.value, bookId, status));
+  },
+
+  updateReview(
+    bookId: string,
+    review: { personalRating?: number; personalNote?: string }
+  ) {
+    const loaded = this.load();
+    if (!loaded.ok) {
+      return loaded;
+    }
+    return this.save(updateUserBookReview(loaded.value, bookId, review));
   },
 
   remove(bookId: string) {

@@ -3,6 +3,7 @@ import type { Book } from "@/types/book";
 import {
   addBookToShelf,
   createEmptyBookshelf,
+  updateUserBookReview,
   updateUserBookStatus
 } from "@/repositories/bookshelfRepository";
 
@@ -38,5 +39,16 @@ describe("bookshelf repository", () => {
 
     expect(duplicate.added).toBe(false);
     expect(duplicate.data.userBooks).toHaveLength(1);
+  });
+
+  it("自分の評価とメモを保存できる", () => {
+    const added = addBookToShelf(createEmptyBookshelf(), book);
+    const updated = updateUserBookReview(added.data, book.id, {
+      personalRating: 5,
+      personalNote: "読み返したい"
+    });
+
+    expect(updated.userBooks[0].personalRating).toBe(5);
+    expect(updated.userBooks[0].personalNote).toBe("読み返したい");
   });
 });

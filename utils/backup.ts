@@ -17,12 +17,18 @@ function isBook(value: unknown): value is Book {
 }
 
 function isUserBook(value: unknown): value is UserBook {
+  const rating = value && isRecord(value) ? value.personalRating : undefined;
+  const note = value && isRecord(value) ? value.personalNote : undefined;
+
   return (
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.bookId === "string" &&
     typeof value.registeredAt === "string" &&
     typeof value.updatedAt === "string" &&
+    (rating === undefined ||
+      (typeof rating === "number" && Number.isInteger(rating) && rating >= 1 && rating <= 5)) &&
+    (note === undefined || typeof note === "string") &&
     (value.status === "wantToRead" ||
       value.status === "reading" ||
       value.status === "completed" ||

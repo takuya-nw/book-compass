@@ -85,6 +85,33 @@ export function updateUserBookStatus(
   };
 }
 
+export function updateUserBookReview(
+  data: BookshelfData,
+  bookId: string,
+  review: { personalRating?: number; personalNote?: string }
+): BookshelfData {
+  const now = new Date().toISOString();
+  const normalizedRating =
+    typeof review.personalRating === "number"
+      ? Math.min(5, Math.max(1, Math.round(review.personalRating)))
+      : undefined;
+  const normalizedNote = review.personalNote?.trim() || undefined;
+
+  return {
+    ...data,
+    userBooks: data.userBooks.map((userBook) =>
+      userBook.bookId === bookId
+        ? {
+            ...userBook,
+            personalRating: normalizedRating,
+            personalNote: normalizedNote,
+            updatedAt: now
+          }
+        : userBook
+    )
+  };
+}
+
 export function removeUserBook(data: BookshelfData, bookId: string): BookshelfData {
   return {
     ...data,

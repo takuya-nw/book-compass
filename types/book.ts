@@ -38,6 +38,8 @@ export type UserBook = {
   id: string;
   bookId: string;
   status: ReadingStatus;
+  personalRating?: number;
+  personalNote?: string;
   registeredAt: string;
   updatedAt: string;
   startedAt?: string;

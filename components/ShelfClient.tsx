@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Search, Trash2 } from "lucide-react";
+import { Search, Star, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BackupPanel } from "@/components/BackupPanel";
 import { BookCover } from "@/components/BookCover";
@@ -198,6 +198,15 @@ export function ShelfClient() {
                       <p className="mt-2 text-sm text-muted">{formatAuthors(book.authors)}</p>
                       <p className="mt-1 text-sm text-muted">{book.publisher ?? "出版社不明"}</p>
                       <p className="mt-1 text-sm text-muted">発売日: {book.publishedDate ?? "不明"}</p>
+                      <div className="mt-3 grid gap-1 text-sm text-muted">
+                        <p className="flex items-center gap-1 font-semibold text-ink">
+                          <Star size={16} aria-hidden="true" />
+                          自分の評価: {userBook.personalRating ? `${userBook.personalRating} / 5` : "未評価"}
+                        </p>
+                        {userBook.personalNote ? (
+                          <p className="line-clamp-2">{userBook.personalNote}</p>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3">

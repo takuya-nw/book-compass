@@ -5,6 +5,7 @@ import { ExternalLink, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BookCover } from "@/components/BookCover";
 import { Notice } from "@/components/Notice";
+import { PersonalReviewPanel } from "@/components/PersonalReviewPanel";
 import { StatusBadge } from "@/components/StatusBadge";
 import { StatusControls } from "@/components/StatusControls";
 import {
@@ -108,6 +109,31 @@ export function BookDetailClient({ id }: { id: string }) {
     }
   }
 
+  function handleReviewSave(review: { personalRating?: number; personalNote?: string }) {
+    if (!book) {
+      return;
+    }
+
+    const result = shelfItem
+      ? localStorageBookshelfRepository.updateReview(book.id, review)
+      : localStorageBookshelfRepository.addBook(book, "completed");
+
+    if (result.ok && !shelfItem) {
+      const savedReview = localStorageBookshelfRepository.updateReview(book.id, review);
+      if (!savedReview.ok) {
+        setError(savedReview.error);
+        return;
+      }
+    } else if (!result.ok) {
+      setError(result.error);
+      return;
+    }
+
+    setMessage("読後メモを保存しました。");
+    setError("");
+    refreshShelf();
+  }
+
   if (!book) {
     return (
       <main className="mx-auto max-w-6xl px-4 py-8">
@@ -196,6 +222,11 @@ export function BookDetailClient({ id }: { id: string }) {
               ) : null}
             </div>
           </div>
+
+          <PersonalReviewPanel
+            userBook={shelfItem?.userBook}
+            onSave={handleReviewSave}
+          />
 
           <div className="mt-5 grid gap-3">
             {message ? <Notice message={message} tone="success" /> : null}

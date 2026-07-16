@@ -19,6 +19,8 @@ const data: BookshelfData = {
       id: "user-book-1",
       bookId: "book-1",
       status: "completed",
+      personalRating: 4,
+      personalNote: "バックアップ確認用メモ",
       registeredAt: "2026-07-12T00:00:00.000Z",
       updatedAt: "2026-07-12T00:00:00.000Z"
     }
