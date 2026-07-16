@@ -316,4 +316,20 @@ describe("おすすめ候補", () => {
       "山田太郎さんの著書"
     ]);
   });
+
+  it("デモ補完候補には特定ジャンルと誤認しない理由を付ける", () => {
+    const candidate = createBook("fallback");
+    const [ranked] = rankRecommendationCandidates(
+      [
+        {
+          seed: { kind: "category", value: "教養", basedOnTitles: ["本1"] },
+          books: [candidate],
+          isFallback: true
+        }
+      ],
+      []
+    );
+
+    expect(ranked.reasons).toEqual(["本棚の好みから広げた候補"]);
+  });
 });

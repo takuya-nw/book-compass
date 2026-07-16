@@ -16,6 +16,7 @@ export type RecommendationSeed = {
 export type RecommendationSearchGroup = {
   seed: RecommendationSeed;
   books: Book[];
+  isFallback?: boolean;
 };
 
 export type RankedRecommendation = {
@@ -189,10 +190,13 @@ type RankingCandidate = {
   searchReasons: Map<string, number>;
 };
 
-function createSearchReason(seed: RecommendationSeed): string {
-  return seed.kind === "author"
-    ? `${seed.value}さんの著書`
-    : `ジャンル「${seed.value}」の検索候補`;
+function createSearchReason(group: RecommendationSearchGroup): string {
+  if (group.isFallback) {
+    return "本棚の好みから広げた候補";
+  }
+  return group.seed.kind === "author"
+    ? `${group.seed.value}さんの著書`
+    : `ジャンル「${group.seed.value}」の検索候補`;
 }
 
 function toNormalizedSet(values: string[]): Set<string> {
@@ -334,7 +338,7 @@ export function rankRecommendationCandidates(
       candidate.score += searchScore;
       addWeightedReason(
         candidate.searchReasons,
-        createSearchReason(group.seed),
+        createSearchReason(group),
         searchScore
       );
       candidates.set(identityKey, candidate);

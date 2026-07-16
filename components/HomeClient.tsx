@@ -12,8 +12,8 @@ import {
   Star,
   Undo2
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { Book, BookSearchResult, BookshelfData } from "@/types/book";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Book, BookshelfData } from "@/types/book";
 import { createEmptyBookshelf, getShelfItems } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import { localStorageRecommendationRepository } from "@/repositories/localStorageRecommendationRepository";
@@ -36,6 +36,7 @@ import {
   type RecommendationPreferences,
   type RecommendationSignal
 } from "@/utils/recommendationPreferences";
+import { getRecommendationSearchResult } from "@/services/recommendationSearchService";
 
 const RECOMMENDATION_PAGE_SIZE = 4;
 
@@ -102,6 +103,11 @@ export function HomeClient() {
     () => createRecommendationSeeds(items, 3, recommendationPreferences.feedback),
     [items, recommendationPreferences.feedback]
   );
+  const recommendationSeedSignature = recommendationSeeds
+    .map(getRecommendationSeedKey)
+    .join("|");
+  const recommendationSeedsRef = useRef(recommendationSeeds);
+  recommendationSeedsRef.current = recommendationSeeds;
   const recommendationSeed = recommendationSeeds[0];
   const selectedRecommendationSeed = recommendationSeeds.find(
     (seed) => getRecommendationSeedKey(seed) === selectedRecommendationKey
@@ -116,39 +122,29 @@ export function HomeClient() {
   const recentCompletedItems = useMemo(() => getRecentCompletedItems(items), [items]);
 
   useEffect(() => {
-    if (!shelfReady || recommendationSeeds.length === 0) {
+    if (!shelfReady || !recommendationSeedSignature) {
       setRecommendationGroups([]);
       setRecommendationMessages([]);
       setRecommendationsLoading(false);
       return;
     }
 
-    const controller = new AbortController();
+    const seedSnapshot = recommendationSeedsRef.current;
+    let cancelled = false;
     setRecommendationsLoading(true);
     setRecommendationMessages([]);
 
     async function loadRecommendations() {
       try {
         const settledResults = await Promise.allSettled(
-          recommendationSeeds.map(async (seed) => {
-            const params = new URLSearchParams({
-              keyword: seed.value,
-              source: "google",
-              sort: "relevance"
-            });
-            const response = await fetch(`/api/books/search?${params.toString()}`, {
-              signal: controller.signal
-            });
-            if (!response.ok) {
-              throw new Error("recommendation-failed");
-            }
+          seedSnapshot.map(async (seed) => {
             return {
               seed,
-              result: (await response.json()) as BookSearchResult
+              result: await getRecommendationSearchResult(seed)
             };
           })
         );
-        if (controller.signal.aborted) {
+        if (cancelled) {
           return;
         }
 
@@ -158,7 +154,7 @@ export function HomeClient() {
         if (successfulResults.length === 0) {
           throw new Error("recommendation-failed");
         }
-        let groups = successfulResults.map(({ seed, result }) => ({
+        let groups: RecommendationSearchGroup[] = successfulResults.map(({ seed, result }) => ({
           seed,
           books: result.books
         }));
@@ -169,28 +165,38 @@ export function HomeClient() {
           );
         }
 
-        const rankedCandidates = rankRecommendationCandidates(groups, items, {
-          excludedBookKeys: dismissedBookKeys,
-          limit: 1
-        });
         const demoMode = successfulResults.some(({ result }) => result.demoMode);
-        if (demoMode && rankedCandidates.length === 0) {
-          const fallbackResponse = await fetch(
-            "/api/books/search?source=google&sort=relevance",
-            { signal: controller.signal }
-          );
-          if (fallbackResponse.ok) {
-            const fallbackResult = (await fallbackResponse.json()) as BookSearchResult;
-            groups = [{ seed: recommendationSeeds[0], books: fallbackResult.books }];
-            messages.push(...fallbackResult.messages);
+        if (demoMode) {
+          const fallbackResult = await getRecommendationSearchResult();
+          if (cancelled) {
+            return;
           }
+          const knownBookKeys = new Set(
+            groups.flatMap((group) =>
+              group.books.map((book) => getBookIdentityKey(book))
+            )
+          );
+          const fallbackBooks = fallbackResult.books.filter(
+            (book) => !knownBookKeys.has(getBookIdentityKey(book))
+          );
+          if (fallbackBooks.length > 0) {
+            groups = [
+              ...groups,
+              {
+                seed: seedSnapshot[0],
+                books: fallbackBooks,
+                isFallback: true
+              }
+            ];
+          }
+          messages.push(...fallbackResult.messages);
         }
 
         setRecommendationGroups(groups);
         setRecommendationOffset(0);
         setRecommendationMessages(Array.from(new Set(messages)));
-      } catch (fetchError: unknown) {
-        if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
+      } catch {
+        if (cancelled) {
           return;
         }
         setRecommendationGroups([]);
@@ -198,7 +204,7 @@ export function HomeClient() {
           "おすすめを取得できませんでした。時間をおいてもう一度お試しください。"
         ]);
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setRecommendationsLoading(false);
         }
       }
@@ -206,8 +212,10 @@ export function HomeClient() {
 
     void loadRecommendations();
 
-    return () => controller.abort();
-  }, [dismissedBookKeys, items, recommendationSeeds, shelfReady]);
+    return () => {
+      cancelled = true;
+    };
+  }, [recommendationSeedSignature, shelfReady]);
 
   useEffect(() => {
     if (
@@ -225,8 +233,9 @@ export function HomeClient() {
       selectedRecommendationKey === "all"
         ? recommendationGroups
         : recommendationGroups.filter(
-            ({ seed }) =>
-              getRecommendationSeedKey(seed) === selectedRecommendationKey
+            (group) =>
+              !group.isFallback &&
+              getRecommendationSeedKey(group.seed) === selectedRecommendationKey
           ),
     [recommendationGroups, selectedRecommendationKey]
   );
