@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Info, Plus } from "lucide-react";
+import { Check, Info, Plus, X } from "lucide-react";
 import type { Book, ReadingStatus } from "@/types/book";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import { formatIsbn, formatReviewAverage, formatReviewCount } from "@/utils/bookDisplay";
@@ -11,6 +11,7 @@ import { BookCover } from "@/components/BookCover";
 type BookCardProps = {
   book: Book;
   onMessage?: (message: string, tone: "success" | "error") => void;
+  onDismiss?: (book: Book) => void;
   shelfStatus?: ReadingStatus;
 };
 
@@ -20,7 +21,7 @@ const sourceLabels = {
   mock: "デモデータ"
 };
 
-export function BookCard({ book, onMessage, shelfStatus }: BookCardProps) {
+export function BookCard({ book, onDismiss, onMessage, shelfStatus }: BookCardProps) {
   function addToShelf() {
     const result = localStorageBookshelfRepository.addBook(book);
     onMessage?.(
@@ -34,8 +35,19 @@ export function BookCard({ book, onMessage, shelfStatus }: BookCardProps) {
   }
 
   return (
-    <article className="surface flex h-full flex-col p-4">
-      <div className="flex gap-4">
+    <article className="surface relative flex h-full flex-col p-4">
+      {onDismiss ? (
+        <button
+          type="button"
+          onClick={() => onDismiss(book)}
+          className="absolute right-3 top-3 flex size-9 items-center justify-center rounded-md border border-line bg-white text-muted transition hover:border-clay hover:text-clay"
+          aria-label={`「${book.title}」をおすすめから外す`}
+          title="おすすめから外す"
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      ) : null}
+      <div className={`flex gap-4 ${onDismiss ? "pr-10" : ""}`}>
         <BookCover src={book.thumbnailUrl} title={book.title} />
         <div className="min-w-0 flex-1">
           <p className="mb-1 text-xs font-semibold text-sage">{sourceLabels[book.source]}</p>

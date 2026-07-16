@@ -6,13 +6,17 @@ import {
   BookMarked,
   BookOpen,
   CheckCircle2,
+  RefreshCw,
+  SlidersHorizontal,
   Sparkles,
-  Star
+  Star,
+  Undo2
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { Book, BookSearchResult, BookshelfData } from "@/types/book";
 import { createEmptyBookshelf, getShelfItems } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
+import { localStorageRecommendationRepository } from "@/repositories/localStorageRecommendationRepository";
 import { formatAuthors } from "@/utils/formatters";
 import { BookCard } from "@/components/BookCard";
 import { BookCover } from "@/components/BookCover";
@@ -20,10 +24,13 @@ import { createHomeSummary, getRecentCompletedItems } from "@/utils/homeSummary"
 import { Notice } from "@/components/Notice";
 import { formatReadingDate } from "@/utils/readingDates";
 import {
-  createRecommendationSeed,
+  createRecommendationSeeds,
   formatRecommendationReason,
   getRecommendationCandidates
 } from "@/utils/recommendations";
+import { getBookIdentityKey } from "@/utils/bookIdentity";
+
+const RECOMMENDATION_PAGE_SIZE = 4;
 
 function StatCard({
   label,
@@ -56,6 +63,9 @@ export function HomeClient() {
     "success" | "error"
   >("success");
   const [recommendationsLoading, setRecommendationsLoading] = useState(false);
+  const [selectedSeedIndex, setSelectedSeedIndex] = useState(0);
+  const [recommendationOffset, setRecommendationOffset] = useState(0);
+  const [dismissedBookKeys, setDismissedBookKeys] = useState<string[]>([]);
 
   useEffect(() => {
     const loaded = localStorageBookshelfRepository.load();
@@ -64,12 +74,24 @@ export function HomeClient() {
     } else {
       setError(loaded.error);
     }
+
+    const loadedPreferences = localStorageRecommendationRepository.load();
+    if (loadedPreferences.ok) {
+      setDismissedBookKeys(loadedPreferences.value.dismissedBookKeys);
+    } else {
+      setRecommendationFeedback(loadedPreferences.error);
+      setRecommendationFeedbackTone("error");
+    }
     setShelfReady(true);
   }, []);
 
   const items = useMemo(() => getShelfItems(data), [data]);
   const summary = useMemo(() => createHomeSummary(items), [items]);
-  const recommendationSeed = useMemo(() => createRecommendationSeed(items), [items]);
+  const recommendationSeeds = useMemo(() => createRecommendationSeeds(items), [items]);
+  const activeSeedIndex = recommendationSeeds.length
+    ? selectedSeedIndex % recommendationSeeds.length
+    : 0;
+  const recommendationSeed = recommendationSeeds[activeSeedIndex];
   const recentItems = [...items]
     .sort(
       (a, b) =>
@@ -97,20 +119,38 @@ export function HomeClient() {
     setRecommendationsLoading(true);
     setRecommendationMessages([]);
 
-    fetch(`/api/books/search?${params.toString()}`, { signal: controller.signal })
-      .then(async (response) => {
+    async function loadRecommendations() {
+      try {
+        const response = await fetch(`/api/books/search?${params.toString()}`, {
+          signal: controller.signal
+        });
         if (!response.ok) {
           throw new Error("recommendation-failed");
         }
-        return (await response.json()) as BookSearchResult;
-      })
-      .then((result) => {
-        setRecommendationBooks(
-          getRecommendationCandidates(result.books, data.books)
-        );
+
+        let result = (await response.json()) as BookSearchResult;
+        let candidates = getRecommendationCandidates(result.books, data.books, {
+          excludedBookKeys: dismissedBookKeys,
+          limit: 24
+        });
+        if (result.demoMode && candidates.length === 0) {
+          const fallbackResponse = await fetch(
+            "/api/books/search?source=google&sort=relevance",
+            { signal: controller.signal }
+          );
+          if (fallbackResponse.ok) {
+            result = (await fallbackResponse.json()) as BookSearchResult;
+            candidates = getRecommendationCandidates(result.books, data.books, {
+              excludedBookKeys: dismissedBookKeys,
+              limit: 24
+            });
+          }
+        }
+
+        setRecommendationBooks(candidates);
+        setRecommendationOffset(0);
         setRecommendationMessages(result.messages);
-      })
-      .catch((fetchError: unknown) => {
+      } catch (fetchError: unknown) {
         if (fetchError instanceof DOMException && fetchError.name === "AbortError") {
           return;
         }
@@ -118,15 +158,22 @@ export function HomeClient() {
         setRecommendationMessages([
           "おすすめを取得できませんでした。時間をおいてもう一度お試しください。"
         ]);
-      })
-      .finally(() => {
+      } finally {
         if (!controller.signal.aborted) {
           setRecommendationsLoading(false);
         }
-      });
+      }
+    }
+
+    void loadRecommendations();
 
     return () => controller.abort();
-  }, [data.books, recommendationSeed, shelfReady]);
+  }, [data.books, dismissedBookKeys, recommendationSeed, shelfReady]);
+
+  const visibleRecommendationBooks = recommendationBooks.slice(
+    recommendationOffset,
+    recommendationOffset + RECOMMENDATION_PAGE_SIZE
+  );
 
   function handleRecommendationMessage(message: string, tone: "success" | "error") {
     setRecommendationFeedback(message);
@@ -137,6 +184,56 @@ export function HomeClient() {
         setData(loaded.value);
       }
     }
+  }
+
+  function handleSelectSeed(index: number) {
+    setSelectedSeedIndex(index);
+    setRecommendationOffset(0);
+    setRecommendationFeedback("");
+  }
+
+  function handleNextRecommendations() {
+    if (recommendationOffset + RECOMMENDATION_PAGE_SIZE < recommendationBooks.length) {
+      setRecommendationOffset(recommendationOffset + RECOMMENDATION_PAGE_SIZE);
+      return;
+    }
+
+    if (recommendationSeeds.length > 1) {
+      setSelectedSeedIndex((activeSeedIndex + 1) % recommendationSeeds.length);
+    }
+    setRecommendationOffset(0);
+  }
+
+  function handleDismissRecommendation(book: Book) {
+    const result = localStorageRecommendationRepository.dismiss(book);
+    if (!result.ok) {
+      setRecommendationFeedback(result.error);
+      setRecommendationFeedbackTone("error");
+      return;
+    }
+
+    const dismissedKey = getBookIdentityKey(book);
+    setDismissedBookKeys(result.value.dismissedBookKeys);
+    setRecommendationBooks((current) =>
+      current.filter((candidate) => getBookIdentityKey(candidate) !== dismissedKey)
+    );
+    setRecommendationOffset(0);
+    setRecommendationFeedback("この本を今後のおすすめから外しました。");
+    setRecommendationFeedbackTone("success");
+  }
+
+  function handleResetDismissedRecommendations() {
+    const result = localStorageRecommendationRepository.clear();
+    if (!result.ok) {
+      setRecommendationFeedback(result.error);
+      setRecommendationFeedbackTone("error");
+      return;
+    }
+
+    setDismissedBookKeys([]);
+    setRecommendationOffset(0);
+    setRecommendationFeedback("おすすめから外した本を、再び候補に含めます。");
+    setRecommendationFeedbackTone("success");
   }
 
   return (
@@ -201,7 +298,7 @@ export function HomeClient() {
       </section>
 
       <section id="recommendations" className="mt-10 scroll-mt-24">
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="text-2xl font-bold">あなたへのおすすめ</h2>
             {recommendationSeed ? (
@@ -210,10 +307,54 @@ export function HomeClient() {
               </p>
             ) : null}
           </div>
-          <Link href="/search" className="text-sm font-semibold text-sage hover:underline">
-            自分で探す
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {recommendationSeed &&
+            (recommendationBooks.length > RECOMMENDATION_PAGE_SIZE ||
+              recommendationSeeds.length > 1) ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleNextRecommendations}
+              >
+                <RefreshCw size={17} aria-hidden="true" />
+                別の候補を見る
+              </button>
+            ) : null}
+            <Link href="/search" className="text-sm font-semibold text-sage hover:underline">
+              自分で探す
+            </Link>
+          </div>
         </div>
+
+        {recommendationSeeds.length > 1 ? (
+          <div className="mb-4">
+            <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted">
+              <SlidersHorizontal size={17} aria-hidden="true" />
+              おすすめの基準
+            </p>
+            <div
+              className="inline-flex max-w-full flex-wrap gap-1 rounded-md border border-line bg-white p-1"
+              role="group"
+              aria-label="おすすめの基準"
+            >
+              {recommendationSeeds.map((seed, index) => (
+                <button
+                  key={`${seed.kind}-${seed.value}`}
+                  type="button"
+                  onClick={() => handleSelectSeed(index)}
+                  className={`min-h-9 rounded px-3 text-sm font-semibold transition ${
+                    index === activeSeedIndex
+                      ? "bg-sage text-white"
+                      : "text-muted hover:bg-[#edf5ef] hover:text-ink"
+                  }`}
+                  aria-pressed={index === activeSeedIndex}
+                >
+                  {seed.kind === "category" ? `ジャンル: ${seed.value}` : `著者: ${seed.value}`}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="mb-4 grid gap-3">
           {recommendationFeedback ? (
@@ -225,6 +366,19 @@ export function HomeClient() {
           {recommendationMessages.map((message) => (
             <Notice key={message} message={message} />
           ))}
+          {dismissedBookKeys.length > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted">
+              <p>おすすめから外した本: {dismissedBookKeys.length}冊</p>
+              <button
+                type="button"
+                onClick={handleResetDismissedRecommendations}
+                className="inline-flex items-center gap-1 font-semibold text-sage hover:underline"
+              >
+                <Undo2 size={16} aria-hidden="true" />
+                除外をリセット
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {!shelfReady || recommendationsLoading ? (
@@ -233,16 +387,17 @@ export function HomeClient() {
           <div className="surface p-6 text-muted">
             おすすめの条件にできる本がまだありません。本棚に本を追加すると、ここに候補が表示されます。
           </div>
-        ) : recommendationBooks.length === 0 ? (
+        ) : visibleRecommendationBooks.length === 0 ? (
           <div className="surface p-6 text-muted">
             今回は新しい候補が見つかりませんでした。本棚が増えるとおすすめも変わります。
           </div>
         ) : (
           <div className="grid gap-4 lg:grid-cols-2">
-            {recommendationBooks.map((book) => (
+            {visibleRecommendationBooks.map((book) => (
               <BookCard
                 key={`${book.source}-${book.sourceId}`}
                 book={book}
+                onDismiss={handleDismissRecommendation}
                 onMessage={handleRecommendationMessage}
               />
             ))}

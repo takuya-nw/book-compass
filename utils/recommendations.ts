@@ -1,10 +1,15 @@
 import type { Book } from "@/types/book";
-import { areSameBook, normalizeText } from "@/utils/bookIdentity";
+import {
+  areSameBook,
+  getBookIdentityKey,
+  normalizeText
+} from "@/utils/bookIdentity";
 import type { ShelfItem } from "@/utils/shelfView";
 
 export type RecommendationSeed = {
   kind: "category" | "author";
   value: string;
+  basedOnTitles: string[];
 };
 
 type Candidate = RecommendationSeed & {
@@ -31,7 +36,8 @@ function addCandidate(
   candidates: Map<string, Candidate>,
   kind: RecommendationSeed["kind"],
   value: string,
-  score: number
+  score: number,
+  bookTitle: string
 ) {
   const trimmedValue = value.trim();
   const normalizedValue = normalizeText(trimmedValue);
@@ -41,17 +47,22 @@ function addCandidate(
 
   const key = `${kind}:${normalizedValue}`;
   const current = candidates.get(key);
+  const basedOnTitles = current?.basedOnTitles ?? [];
   candidates.set(key, {
     kind,
     value: current?.value ?? trimmedValue,
+    basedOnTitles: basedOnTitles.includes(bookTitle)
+      ? basedOnTitles
+      : [...basedOnTitles, bookTitle],
     score: (current?.score ?? 0) + score,
     count: (current?.count ?? 0) + 1
   });
 }
 
-export function createRecommendationSeed(
-  items: ShelfItem[]
-): RecommendationSeed | undefined {
+export function createRecommendationSeeds(
+  items: ShelfItem[],
+  limit = 3
+): RecommendationSeed[] {
   const candidates = new Map<string, Candidate>();
 
   items.forEach((item) => {
@@ -61,46 +72,72 @@ export function createRecommendationSeed(
     }
 
     item.book.categories.forEach((category) =>
-      addCandidate(candidates, "category", category, score)
+      addCandidate(candidates, "category", category, score, item.book.title)
     );
     item.book.authors.forEach((author) =>
-      addCandidate(candidates, "author", author, score)
+      addCandidate(candidates, "author", author, score, item.book.title)
     );
   });
 
-  const [best] = [...candidates.values()].sort((a, b) => {
-    if (b.score !== a.score) {
-      return b.score - a.score;
-    }
-    if (b.count !== a.count) {
-      return b.count - a.count;
-    }
-    if (a.kind !== b.kind) {
-      return a.kind === "category" ? -1 : 1;
-    }
-    return a.value.localeCompare(b.value, "ja");
-  });
+  return [...candidates.values()]
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+      if (a.kind !== b.kind) {
+        return a.kind === "category" ? -1 : 1;
+      }
+      return a.value.localeCompare(b.value, "ja");
+    })
+    .slice(0, Math.max(0, limit))
+    .map(({ kind, value, basedOnTitles }) => ({
+      kind,
+      value,
+      basedOnTitles: basedOnTitles.slice(0, 2)
+    }));
+}
 
-  return best ? { kind: best.kind, value: best.value } : undefined;
+export function createRecommendationSeed(
+  items: ShelfItem[]
+): RecommendationSeed | undefined {
+  return createRecommendationSeeds(items, 1)[0];
 }
 
 export function formatRecommendationReason(seed: RecommendationSeed): string {
+  const basis =
+    seed.basedOnTitles.length > 1
+      ? `「${seed.basedOnTitles[0]}」などの本棚データ`
+      : seed.basedOnTitles.length === 1
+        ? `「${seed.basedOnTitles[0]}」の登録内容`
+        : "本棚の登録内容";
+
   return seed.kind === "category"
-    ? `本棚の「${seed.value}」に近い本を選びました。`
-    : `本棚にある${seed.value}さんの本から選びました。`;
+    ? `${basis}から、ジャンル「${seed.value}」に近い本を選びました。`
+    : `${basis}から、${seed.value}さんの本を選びました。`;
 }
+
+type RecommendationCandidateOptions = {
+  excludedBookKeys?: string[];
+  limit?: number;
+};
 
 export function getRecommendationCandidates(
   books: Book[],
   shelfBooks: Book[],
-  limit = 4
+  options: RecommendationCandidateOptions = {}
 ): Book[] {
   const candidates: Book[] = [];
+  const excludedBookKeys = new Set(options.excludedBookKeys ?? []);
+  const limit = options.limit ?? 4;
 
   for (const book of books) {
     const existsOnShelf = shelfBooks.some((shelfBook) => areSameBook(shelfBook, book));
     const alreadyIncluded = candidates.some((candidate) => areSameBook(candidate, book));
-    if (!existsOnShelf && !alreadyIncluded) {
+    const isExcluded = excludedBookKeys.has(getBookIdentityKey(book));
+    if (!existsOnShelf && !alreadyIncluded && !isExcluded) {
       candidates.push(book);
     }
     if (candidates.length >= limit) {

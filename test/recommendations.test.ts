@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Book, UserBook } from "@/types/book";
 import {
   createRecommendationSeed,
+  createRecommendationSeeds,
   getRecommendationCandidates
 } from "@/utils/recommendations";
 import type { ShelfItem } from "@/utils/shelfView";
@@ -55,7 +56,11 @@ describe("おすすめ候補", () => {
       createItem("3", { categories: ["経営"], status: "wantToRead" })
     ]);
 
-    expect(seed).toEqual({ kind: "category", value: "心理学" });
+    expect(seed).toEqual({
+      kind: "category",
+      value: "心理学",
+      basedOnTitles: ["本1", "本2"]
+    });
   });
 
   it("ジャンルがない場合は著者を検索軸にする", () => {
@@ -63,7 +68,29 @@ describe("おすすめ候補", () => {
       createItem("1", { authors: ["山田太郎"], status: "completed", rating: 4 })
     ]);
 
-    expect(seed).toEqual({ kind: "author", value: "山田太郎" });
+    expect(seed).toEqual({
+      kind: "author",
+      value: "山田太郎",
+      basedOnTitles: ["本1"]
+    });
+  });
+
+  it("複数のおすすめ条件を優先順に取得できる", () => {
+    const seeds = createRecommendationSeeds([
+      createItem("1", {
+        categories: ["心理学"],
+        authors: ["山田太郎"],
+        status: "completed",
+        rating: 5
+      }),
+      createItem("2", { categories: ["教養"], status: "reading" })
+    ]);
+
+    expect(seeds.map(({ kind, value }) => ({ kind, value }))).toEqual([
+      { kind: "category", value: "心理学" },
+      { kind: "author", value: "山田太郎" },
+      { kind: "category", value: "教養" }
+    ]);
   });
 
   it("興味なしと低評価の本はおすすめ条件に使わない", () => {
@@ -80,8 +107,19 @@ describe("おすすめ候補", () => {
     const duplicate = createBook("duplicate", "9784000000001");
     const candidate = createBook("candidate", "9784000000002");
 
-    expect(getRecommendationCandidates([duplicate, candidate, candidate], [shelfBook])).toEqual([
-      candidate
-    ]);
+    expect(
+      getRecommendationCandidates([duplicate, candidate, candidate], [shelfBook])
+    ).toEqual([candidate]);
+  });
+
+  it("おすすめから外した本を候補に含めない", () => {
+    const excluded = createBook("excluded", "9784000000003");
+    const candidate = createBook("candidate", "9784000000004");
+
+    expect(
+      getRecommendationCandidates([excluded, candidate], [], {
+        excludedBookKeys: ["isbn:9784000000003"]
+      })
+    ).toEqual([candidate]);
   });
 });
