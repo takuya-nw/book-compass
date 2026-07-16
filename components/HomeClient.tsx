@@ -16,6 +16,7 @@ import { localStorageBookshelfRepository } from "@/repositories/localStorageBook
 import { formatAuthors } from "@/utils/formatters";
 import { BookCover } from "@/components/BookCover";
 import { createHomeSummary, getRecentCompletedItems } from "@/utils/homeSummary";
+import { Notice } from "@/components/Notice";
 
 function StatCard({
   label,
@@ -39,11 +40,14 @@ function StatCard({
 
 export function HomeClient() {
   const [data, setData] = useState<BookshelfData>(createEmptyBookshelf());
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const loaded = localStorageBookshelfRepository.load();
     if (loaded.ok) {
       setData(loaded.value);
+    } else {
+      setError(loaded.error);
     }
   }, []);
 
@@ -102,6 +106,12 @@ export function HomeClient() {
           </p>
         </div>
       </section>
+
+      {error ? (
+        <div className="mt-6">
+          <Notice message={error} tone="error" />
+        </div>
+      ) : null}
 
       <section className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="読みたい本" value={summary.wantToRead} icon={<BookMarked size={22} />} />

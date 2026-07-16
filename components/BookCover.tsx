@@ -12,6 +12,8 @@ export function BookCover({ src, title, size = "small" }: BookCoverProps) {
 
   return (
     <div className={`${dimensions} shrink-0 overflow-hidden rounded-md border border-line bg-[#efe6d5] shadow-sm`}>
+      {/* Google Books cover images can be served from multiple remote hosts. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src || "/placeholder-cover.svg"}
         alt={`${title}の表紙`}

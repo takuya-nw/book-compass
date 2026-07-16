@@ -10,7 +10,7 @@ import { BookCover } from "@/components/BookCover";
 
 type BookCardProps = {
   book: Book;
-  onMessage?: (message: string) => void;
+  onMessage?: (message: string, tone: "success" | "error") => void;
   shelfStatus?: ReadingStatus;
 };
 
@@ -23,7 +23,10 @@ const sourceLabels = {
 export function BookCard({ book, onMessage, shelfStatus }: BookCardProps) {
   function addToShelf() {
     const result = localStorageBookshelfRepository.addBook(book);
-    onMessage?.(result.ok ? result.message ?? "本棚に追加しました。" : result.error);
+    onMessage?.(
+      result.ok ? result.message ?? "本棚に追加しました。" : result.error,
+      result.ok ? "success" : "error"
+    );
   }
 
   function rememberBook() {

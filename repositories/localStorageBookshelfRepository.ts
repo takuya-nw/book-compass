@@ -17,13 +17,9 @@ export type RepositoryResult<T> =
   | { ok: true; value: T; message?: string }
   | { ok: false; error: string };
 
-function canUseStorage(): boolean {
-  return typeof window !== "undefined" && Boolean(window.localStorage);
-}
-
 export const localStorageBookshelfRepository = {
   load(): RepositoryResult<BookshelfData> {
-    if (!canUseStorage()) {
+    if (typeof window === "undefined") {
       return { ok: true, value: createEmptyBookshelf() };
     }
 
@@ -43,7 +39,7 @@ export const localStorageBookshelfRepository = {
   },
 
   save(data: BookshelfData): RepositoryResult<BookshelfData> {
-    if (!canUseStorage()) {
+    if (typeof window === "undefined") {
       return { ok: true, value: data };
     }
 
@@ -104,14 +100,18 @@ export const localStorageBookshelfRepository = {
   },
 
   rememberBook(book: Book) {
-    if (!canUseStorage()) {
+    if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem(RECENT_BOOK_KEY, JSON.stringify(book));
+    try {
+      window.localStorage.setItem(RECENT_BOOK_KEY, JSON.stringify(book));
+    } catch {
+      // This cache only supports navigation; the detail API remains available.
+    }
   },
 
   loadRememberedBook(id: string): Book | undefined {
-    if (!canUseStorage()) {
+    if (typeof window === "undefined") {
       return undefined;
     }
     try {

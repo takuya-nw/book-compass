@@ -28,6 +28,7 @@ export function SearchClient() {
   const [books, setBooks] = useState<Book[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
   const [feedback, setFeedback] = useState("");
+  const [feedbackTone, setFeedbackTone] = useState<"success" | "error">("success");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [shelf, setShelf] = useState<BookshelfData>(createEmptyBookshelf());
@@ -36,8 +37,22 @@ export function SearchClient() {
     const loaded = localStorageBookshelfRepository.load();
     if (loaded.ok) {
       setShelf(loaded.value);
+    } else {
+      setFeedback(loaded.error);
+      setFeedbackTone("error");
     }
-  }, [feedback]);
+  }, []);
+
+  function handleBookMessage(message: string, tone: "success" | "error") {
+    setFeedback(message);
+    setFeedbackTone(tone);
+    if (tone === "success") {
+      const loaded = localStorageBookshelfRepository.load();
+      if (loaded.ok) {
+        setShelf(loaded.value);
+      }
+    }
+  }
 
   const statusByBookId = useMemo(() => {
     const map = new Map<string, ReadingStatus>();
@@ -143,7 +158,7 @@ export function SearchClient() {
       </form>
 
       <div className="mt-5 grid gap-3">
-        {feedback ? <Notice message={feedback} tone="success" /> : null}
+        {feedback ? <Notice message={feedback} tone={feedbackTone} /> : null}
         {messages.map((message) => (
           <Notice key={message} message={message} />
         ))}
@@ -167,7 +182,7 @@ export function SearchClient() {
                 key={`${book.source}-${book.sourceId}`}
                 book={book}
                 shelfStatus={statusByBookId.get(book.id)}
-                onMessage={setFeedback}
+                onMessage={handleBookMessage}
               />
             ))}
           </div>

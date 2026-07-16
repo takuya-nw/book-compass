@@ -70,7 +70,7 @@ export function BackupPanel({ data, onRestore }: BackupPanelProps) {
       <div>
         <h2 className="text-xl font-bold">保存・バックアップ</h2>
         <p className="mt-1 text-sm text-muted">
-          本棚データはこのブラウザのlocalStorageに保存されます。
+          本棚データはこのブラウザ内に保存されます。
         </p>
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
