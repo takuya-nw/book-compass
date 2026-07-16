@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createEmptyBookshelf } from "@/repositories/bookshelfRepository";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
-import type { Book } from "@/types/book";
+import type { Book, BookshelfData } from "@/types/book";
 
 const book: Book = {
   id: "storage-test-book",
@@ -10,6 +10,20 @@ const book: Book = {
   categories: [],
   source: "mock",
   sourceId: "storage-test-book"
+};
+
+const existingData: BookshelfData = {
+  version: 1,
+  books: [book],
+  userBooks: [
+    {
+      id: "user-storage-test-book",
+      bookId: book.id,
+      status: "wantToRead",
+      registeredAt: "2026-07-16T00:00:00.000Z",
+      updatedAt: "2026-07-16T00:00:00.000Z"
+    }
+  ]
 };
 
 afterEach(() => {
@@ -62,5 +76,41 @@ describe("localStorage本棚リポジトリ", () => {
     });
 
     expect(() => localStorageBookshelfRepository.rememberBook(book)).not.toThrow();
+  });
+
+  it("不正なバックアップで現在データを上書きしない", () => {
+    const setItem = vi.fn();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => JSON.stringify(existingData),
+        setItem
+      }
+    });
+
+    const result = localStorageBookshelfRepository.restore("{broken");
+
+    expect(result.ok).toBe(false);
+    expect(setItem).not.toHaveBeenCalled();
+    expect(localStorageBookshelfRepository.load()).toEqual({
+      ok: true,
+      value: existingData
+    });
+  });
+
+  it("正しいバックアップだけを保存する", () => {
+    const setItem = vi.fn();
+    vi.stubGlobal("window", {
+      localStorage: {
+        getItem: () => null,
+        setItem
+      }
+    });
+
+    const result = localStorageBookshelfRepository.restore(
+      JSON.stringify(existingData)
+    );
+
+    expect(result).toEqual({ ok: true, value: existingData });
+    expect(setItem).toHaveBeenCalledOnce();
   });
 });

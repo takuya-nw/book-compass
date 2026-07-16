@@ -4,7 +4,7 @@ import { Download, Upload } from "lucide-react";
 import { ChangeEvent, useRef, useState } from "react";
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import type { BookshelfData } from "@/types/book";
-import { exportBookshelfData, parseBackupData } from "@/utils/backup";
+import { exportBookshelfData } from "@/utils/backup";
 import { Notice } from "@/components/Notice";
 
 type BackupPanelProps = {
@@ -46,13 +46,13 @@ export function BackupPanel({ data, onRestore }: BackupPanelProps) {
     }
 
     try {
-      const restored = parseBackupData(await file.text());
-      const result = localStorageBookshelfRepository.replace(restored);
+      const result = localStorageBookshelfRepository.restore(await file.text());
       if (!result.ok) {
         setError(result.error);
+        setMessage("");
         return;
       }
-      onRestore(restored);
+      onRestore(result.value);
       setMessage("バックアップから復元しました。");
       setError("");
     } catch (restoreError) {

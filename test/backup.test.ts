@@ -37,4 +37,31 @@ describe("backup", () => {
     expect(() => parseBackupData("{broken")).toThrow();
     expect(() => parseBackupData(JSON.stringify({ version: 1 }))).toThrow();
   });
+
+  it("型が正しくない本や日付を拒否する", () => {
+    const invalidAuthor = structuredClone(data);
+    invalidAuthor.books[0].authors = [123 as unknown as string];
+    expect(() => parseBackupData(JSON.stringify(invalidAuthor))).toThrow();
+
+    const invalidDate = structuredClone(data);
+    invalidDate.userBooks[0].updatedAt = "日付ではない";
+    expect(() => parseBackupData(JSON.stringify(invalidDate))).toThrow();
+  });
+
+  it("重複IDや存在しない本への読書記録を拒否する", () => {
+    const duplicateBook = structuredClone(data);
+    duplicateBook.books.push(structuredClone(duplicateBook.books[0]));
+    expect(() => parseBackupData(JSON.stringify(duplicateBook))).toThrow();
+
+    const missingBook = structuredClone(data);
+    missingBook.userBooks[0].bookId = "missing-book";
+    expect(() => parseBackupData(JSON.stringify(missingBook))).toThrow();
+
+    const duplicateRegistration = structuredClone(data);
+    duplicateRegistration.userBooks.push({
+      ...structuredClone(duplicateRegistration.userBooks[0]),
+      id: "user-book-2"
+    });
+    expect(() => parseBackupData(JSON.stringify(duplicateRegistration))).toThrow();
+  });
 });

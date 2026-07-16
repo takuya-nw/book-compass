@@ -128,5 +128,20 @@ export const localStorageBookshelfRepository = {
 
   replace(data: BookshelfData) {
     return this.save(data);
+  },
+
+  restore(raw: string): RepositoryResult<BookshelfData> {
+    try {
+      const restored = parseBackupData(raw);
+      return this.save(restored);
+    } catch (restoreError) {
+      return {
+        ok: false,
+        error:
+          restoreError instanceof Error
+            ? restoreError.message
+            : "バックアップを読み込めませんでした。"
+      };
+    }
   }
 };
