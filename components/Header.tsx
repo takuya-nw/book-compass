@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, Library, Search } from "lucide-react";
+import { BarChart3, BookOpen, Library, Search } from "lucide-react";
 
 export function Header() {
   return (
@@ -19,6 +19,10 @@ export function Header() {
           <Link href="/shelf" className="btn-secondary px-3" title="マイ本棚">
             <Library size={18} aria-hidden="true" />
             <span className="hidden sm:inline">マイ本棚</span>
+          </Link>
+          <Link href="/history" className="btn-secondary px-3" title="読書記録">
+            <BarChart3 size={18} aria-hidden="true" />
+            <span className="hidden md:inline">読書記録</span>
           </Link>
         </nav>
       </div>
