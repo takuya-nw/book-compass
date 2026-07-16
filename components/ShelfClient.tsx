@@ -15,12 +15,14 @@ import {
 import { localStorageBookshelfRepository } from "@/repositories/localStorageBookshelfRepository";
 import type { BookshelfData, ReadingStatus } from "@/types/book";
 import { formatAuthors, statusLabels } from "@/utils/formatters";
-import { normalizeText } from "@/utils/bookIdentity";
+import {
+  createShelfView,
+  type ShelfReviewFilter,
+  type ShelfSort,
+  type ShelfStatusFilter
+} from "@/utils/shelfView";
 
-type ShelfFilter = "all" | ReadingStatus;
-type ShelfSort = "registeredAt" | "publishedDate" | "title" | "author";
-
-const filters: { value: ShelfFilter; label: string }[] = [
+const filters: { value: ShelfStatusFilter; label: string }[] = [
   { value: "all", label: "すべて" },
   { value: "wantToRead", label: "読みたい" },
   { value: "reading", label: "読書中" },
@@ -30,7 +32,8 @@ const filters: { value: ShelfFilter; label: string }[] = [
 
 export function ShelfClient() {
   const [data, setData] = useState<BookshelfData>(createEmptyBookshelf());
-  const [filter, setFilter] = useState<ShelfFilter>("all");
+  const [filter, setFilter] = useState<ShelfStatusFilter>("all");
+  const [reviewFilter, setReviewFilter] = useState<ShelfReviewFilter>("all");
   const [sort, setSort] = useState<ShelfSort>("registeredAt");
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
@@ -50,33 +53,13 @@ export function ShelfClient() {
   }, []);
 
   const items = useMemo(() => {
-    const normalizedQuery = normalizeText(query);
-    return getShelfItems(data)
-      .filter(({ book, userBook }) => filter === "all" || userBook.status === filter)
-      .filter(({ book }) => {
-        if (!normalizedQuery) {
-          return true;
-        }
-        return normalizeText(
-          [book.title, book.subtitle, ...book.authors, book.publisher, book.isbn10, book.isbn13].join(" ")
-        ).includes(normalizedQuery);
-      })
-      .sort((a, b) => {
-        if (sort === "publishedDate") {
-          return (b.book.publishedDate ?? "").localeCompare(a.book.publishedDate ?? "");
-        }
-        if (sort === "title") {
-          return a.book.title.localeCompare(b.book.title, "ja");
-        }
-        if (sort === "author") {
-          return (a.book.authors[0] ?? "").localeCompare(b.book.authors[0] ?? "", "ja");
-        }
-        return (
-          new Date(b.userBook.registeredAt).getTime() -
-          new Date(a.userBook.registeredAt).getTime()
-        );
-      });
-  }, [data, filter, query, sort]);
+    return createShelfView(getShelfItems(data), {
+      status: filter,
+      review: reviewFilter,
+      query,
+      sort
+    });
+  }, [data, filter, query, reviewFilter, sort]);
 
   function updateStatus(bookId: string, status: ReadingStatus) {
     const result = localStorageBookshelfRepository.updateStatus(bookId, status);
@@ -126,7 +109,7 @@ export function ShelfClient() {
             ))}
           </div>
 
-          <div className="grid gap-4 md:grid-cols-[1fr_240px]">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_220px_220px]">
             <label className="grid gap-2">
               <span className="label">本棚内検索</span>
               <span className="relative">
@@ -135,9 +118,22 @@ export function ShelfClient() {
                   className="input pl-10"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="書名・著者・ISBNで絞り込み"
+                  placeholder="書名・著者・ISBN・メモで絞り込み"
                 />
               </span>
+            </label>
+            <label className="grid gap-2">
+              <span className="label">読後記録</span>
+              <select
+                className="input"
+                value={reviewFilter}
+                onChange={(event) => setReviewFilter(event.target.value as ShelfReviewFilter)}
+              >
+                <option value="all">すべて</option>
+                <option value="rated">評価あり</option>
+                <option value="unrated">未評価</option>
+                <option value="withNote">メモあり</option>
+              </select>
             </label>
             <label className="grid gap-2">
               <span className="label">並び替え</span>
@@ -150,6 +146,7 @@ export function ShelfClient() {
                 <option value="publishedDate">発売日の新しい順</option>
                 <option value="title">書名順</option>
                 <option value="author">著者順</option>
+                <option value="personalRating">自分の評価が高い順</option>
               </select>
             </label>
           </div>
